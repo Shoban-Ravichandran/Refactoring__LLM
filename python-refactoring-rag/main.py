@@ -31,6 +31,7 @@ from config.settings import PDFConfig, get_default_config
 from services.rag_service import RefactoringRAGSystem
 from models.evaluation.rag_evaluator import RAGEvaluator
 from models.optimization.nsga2_optimizer import run_nsga2_optimization
+from fixed_nsga2_optimizer import run_fixed_nsga2_optimization
 from utils.logging_utils import setup_enhanced_logging
 
 # Try to import enhanced display manager
@@ -43,251 +44,1010 @@ except ImportError:
 
 
 def get_enhanced_test_cases():
-    """Extended set of test cases for comprehensive evaluation."""
+    """
+    Complete test cases covering all 10 refactoring patterns from the dataset generator.
+    This ensures comprehensive evaluation against the actual dataset patterns.
+    """
     return [
+        # 1. EXTRACT_METHOD - Break down long functions
         {
-            'query': 'How can I refactor this nested function to be more readable?',
-            'original_code': '''def process_orders(orders):
-    results = []
-    for order in orders:
-        if order.get('status') == 'active':
-            for item in order.get('items', []):
-                if item.get('price', 0) > 100:
-                    results.append(item)
-    return results''',
-            'reference_answer': """To refactor nested functions for better readability, extract the inner logic into separate functions. Here's the approach:
-
-**Why this helps:**
-- Reduces complexity and cognitive load
-- Makes code easier to understand and test
-- Follows the Single Responsibility Principle
-
-**Refactoring approach:**
-```python
-def is_high_value_item(item):
-    return item.get('price', 0) > 100
-
-def get_active_order_items(order):
-    if order.get('status') == 'active':
-        return order.get('items', [])
-    return []
-
-def process_orders(orders):
-    results = []
-    for order in orders:
-        items = get_active_order_items(order)
-        for item in items:
-            if is_high_value_item(item):
-                results.append(item)
-    return results
-```
-
-This refactoring extracts nested conditions into descriptive functions."""
-        },
-        {
-            'query': 'How to reduce cyclomatic complexity?',
-            'original_code': '''def calculate_discount(customer, amount, product_type):
-    if customer['is_premium']:
-        if product_type == 'electronics':
-            return amount * 0.15 if amount > 1000 else amount * 0.10
-        elif product_type == 'clothing':
-            return amount * 0.20 if amount > 500 else amount * 0.15
-    else:
-        return amount * 0.05 if product_type == 'electronics' else amount * 0.03''',
-            'reference_answer': """To reduce cyclomatic complexity, replace conditional logic with data structures. Here's how:
-
-**Why this helps:**
-- Reduces the number of decision points in code
-- Makes discount rules easier to maintain and extend
-- Eliminates nested conditionals
-
-**Refactoring approach:**
-```python
-def calculate_discount(customer, amount, product_type):
-    discount_rules = {
-        ('premium', 'electronics'): (0.15, 0.10, 1000),
-        ('premium', 'clothing'): (0.20, 0.15, 500),
-        ('regular', 'electronics'): (0.05, 0.05, 0),
-        ('regular', 'clothing'): (0.03, 0.03, 0)
+            'query': 'How can I refactor this long function to be more readable and maintainable?',
+            'original_code': '''def process_customer_order(order_data):
+    # Input validation
+    if not order_data:
+        return {'error': 'No order data provided'}
+    if not order_data.get('customer_id'):
+        return {'error': 'Customer ID required'}
+    if not order_data.get('items') or len(order_data['items']) == 0:
+        return {'error': 'Order must contain items'}
+    
+    # Calculate totals
+    subtotal = 0
+    for item in order_data['items']:
+        if item.get('quantity', 0) <= 0:
+            return {'error': f'Invalid quantity for item {item.get("name", "unknown")}'}
+        if item.get('price', 0) <= 0:
+            return {'error': f'Invalid price for item {item.get("name", "unknown")}'}
+        item_total = item['quantity'] * item['price']
+        subtotal += item_total
+    
+    # Apply discounts
+    discount = 0
+    if order_data.get('discount_code'):
+        if order_data['discount_code'] == 'SAVE10':
+            discount = subtotal * 0.10
+        elif order_data['discount_code'] == 'SAVE20':
+            discount = subtotal * 0.20
+        elif order_data['discount_code'] == 'NEWCUSTOMER':
+            discount = min(subtotal * 0.15, 50)
+    
+    # Calculate tax
+    tax_rate = 0.08
+    if order_data.get('shipping_state') == 'CA':
+        tax_rate = 0.10
+    elif order_data.get('shipping_state') == 'NY':
+        tax_rate = 0.09
+    
+    discounted_subtotal = subtotal - discount
+    tax = discounted_subtotal * tax_rate
+    total = discounted_subtotal + tax
+    
+    # Process payment
+    result = {
+        'order_id': f"ORD-{order_data['customer_id']}-{len(order_data['items'])}",
+        'subtotal': round(subtotal, 2),
+        'discount': round(discount, 2),
+        'tax': round(tax, 2),
+        'total': round(total, 2),
+        'status': 'processed'
     }
     
-    customer_type = 'premium' if customer['is_premium'] else 'regular'
-    key = (customer_type, product_type)
+    return result''',
+            'reference_answer': """Break down this monolithic function into smaller, focused functions:
+
+```python
+def process_customer_order(order_data):
+    if not _validate_order_data(order_data):
+        return _get_validation_error(order_data)
     
-    if key in discount_rules:
-        high_rate, low_rate, threshold = discount_rules[key]
-        return amount * (high_rate if amount > threshold else low_rate)
+    subtotal = _calculate_subtotal(order_data['items'])
+    if isinstance(subtotal, dict):  # Error case
+        return subtotal
     
-    return 0
+    discount = _calculate_discount(subtotal, order_data.get('discount_code'))
+    tax = _calculate_tax(subtotal - discount, order_data.get('shipping_state'))
+    
+    return _build_order_result(order_data, subtotal, discount, tax)
+
+def _validate_order_data(order_data):
+    return (order_data and 
+            order_data.get('customer_id') and 
+            order_data.get('items') and 
+            len(order_data['items']) > 0)
+
+def _calculate_subtotal(items):
+    subtotal = 0
+    for item in items:
+        if item.get('quantity', 0) <= 0 or item.get('price', 0) <= 0:
+            return {'error': f'Invalid item data for {item.get("name", "unknown")}'}
+        subtotal += item['quantity'] * item['price']
+    return subtotal
 ```
 
-This approach uses a lookup table instead of nested conditionals."""
+This refactoring improves readability by giving each function a single responsibility."""
         },
+
+        # 2. EXTRACT_CLASS - Create classes to group functionality
         {
-            'query': 'How can I eliminate code duplication in this class?',
-            'original_code': '''class UserProcessor:
-    def process_admin_user(self, user_data):
-        if not user_data.get('email'):
-            raise ValueError("Email required")
-        if not user_data.get('name'):
-            raise ValueError("Name required")
-        user = {
-            'email': user_data['email'].lower(),
-            'name': user_data['name'].strip(),
-            'role': 'admin',
-            'permissions': ['read', 'write', 'delete']
-        }
-        return user
+            'query': 'This function is handling too many responsibilities. How can I organize it into a proper class structure?',
+            'original_code': '''def manage_library_system(action, book_data=None, member_data=None, book_id=None, member_id=None):
+    books = load_books()
+    members = load_members()
     
-    def process_regular_user(self, user_data):
-        if not user_data.get('email'):
-            raise ValueError("Email required")
-        if not user_data.get('name'):
-            raise ValueError("Name required")
-        user = {
-            'email': user_data['email'].lower(),
-            'name': user_data['name'].strip(),
-            'role': 'user',
-            'permissions': ['read']
+    if action == 'add_book':
+        if not book_data.get('title') or not book_data.get('author'):
+            return {'error': 'Title and author required'}
+        
+        new_book = {
+            'id': len(books) + 1,
+            'title': book_data['title'],
+            'author': book_data['author'],
+            'isbn': book_data.get('isbn'),
+            'available': True,
+            'borrowed_by': None
         }
-        return user''',
-            'reference_answer': """Extract common validation and processing logic into shared methods:
+        books.append(new_book)
+        save_books(books)
+        return {'success': True, 'book': new_book}
+    
+    elif action == 'checkout_book':
+        book = next((b for b in books if b['id'] == book_id), None)
+        member = next((m for m in members if m['id'] == member_id), None)
+        
+        if not book or not member:
+            return {'error': 'Book or member not found'}
+        if not book['available']:
+            return {'error': 'Book not available'}
+        
+        book['available'] = False
+        book['borrowed_by'] = member_id
+        member['borrowed_books'].append(book_id)
+        
+        save_books(books)
+        save_members(members)
+        return {'success': True}
+    
+    elif action == 'add_member':
+        if not member_data.get('name') or not member_data.get('email'):
+            return {'error': 'Name and email required'}
+        
+        new_member = {
+            'id': len(members) + 1,
+            'name': member_data['name'],
+            'email': member_data['email'],
+            'borrowed_books': []
+        }
+        members.append(new_member)
+        save_members(members)
+        return {'success': True, 'member': new_member}''',
+            'reference_answer': """Extract this into separate classes with clear responsibilities:
 
 ```python
-class UserProcessor:
-    def _validate_user_data(self, user_data):
-        if not user_data.get('email'):
-            raise ValueError("Email required")
-        if not user_data.get('name'):
-            raise ValueError("Name required")
-    
-    def _create_base_user(self, user_data, role, permissions):
-        self._validate_user_data(user_data)
-        return {
-            'email': user_data['email'].lower(),
-            'name': user_data['name'].strip(),
-            'role': role,
-            'permissions': permissions
-        }
-    
-    def process_admin_user(self, user_data):
-        return self._create_base_user(user_data, 'admin', ['read', 'write', 'delete'])
-    
-    def process_regular_user(self, user_data):
-        return self._create_base_user(user_data, 'user', ['read'])
-```"""
-        },
-        {
-            'query': 'How to improve the naming and readability of this function?',
-            'original_code': '''def proc_data(d):
-    r = []
-    for x in d:
-        if x['s'] == 'a' and x['v'] > 0:
-            tmp = {'id': x['id'], 'val': x['v'] * 2, 'cat': 'pos'}
-            r.append(tmp)
-        elif x['s'] == 'a' and x['v'] <= 0:
-            tmp = {'id': x['id'], 'val': abs(x['v']), 'cat': 'neg'}
-            r.append(tmp)
-    return r''',
-            'reference_answer': """Improve naming and add clear structure:
+class Book:
+    def __init__(self, id, title, author, isbn=None):
+        self.id = id
+        self.title = title
+        self.author = author
+        self.isbn = isbn
+        self.available = True
+        self.borrowed_by = None
 
-```python
-def process_active_data_entries(data_entries):
-    \"\"\"Process active data entries and categorize by value.\"\"\"
-    processed_results = []
-    
-    for entry in data_entries:
-        if entry['status'] != 'active':
-            continue
-            
-        processed_entry = {
-            'id': entry['id'],
-            'value': entry['value'] * 2 if entry['value'] > 0 else abs(entry['value']),
-            'category': 'positive' if entry['value'] > 0 else 'negative'
-        }
-        processed_results.append(processed_entry)
-    
-    return processed_results
-```"""
-        },
-        {
-            'query': 'How can I optimize this slow loop performance?',
-            'original_code': '''def find_common_elements(list1, list2):
-    common = []
-    for item1 in list1:
-        for item2 in list2:
-            if item1 == item2 and item1 not in common:
-                common.append(item1)
-    return common''',
-            'reference_answer': """Use set operations for O(n) performance:
+class Member:
+    def __init__(self, id, name, email):
+        self.id = id
+        self.name = name
+        self.email = email
+        self.borrowed_books = []
 
-```python
-def find_common_elements(list1, list2):
-    \"\"\"Find common elements using set intersection for better performance.\"\"\"
-    return list(set(list1) & set(list2))
+class LibraryManager:
+    def __init__(self):
+        self.books = self._load_books()
+        self.members = self._load_members()
+    
+    def add_book(self, book_data):
+        if not self._validate_book_data(book_data):
+            return {'error': 'Title and author required'}
+        
+        book = Book(
+            len(self.books) + 1,
+            book_data['title'],
+            book_data['author'],
+            book_data.get('isbn')
+        )
+        self.books.append(book)
+        self._save_books()
+        return {'success': True, 'book': book}
+```
 
-# Alternative preserving order:
-def find_common_elements_ordered(list1, list2):
-    \"\"\"Find common elements preserving order from first list.\"\"\"
-    set2 = set(list2)
-    seen = set()
-    common = []
-    
-    for item in list1:
-        if item in set2 and item not in seen:
-            common.append(item)
-            seen.add(item)
-    
-    return common
-```"""
+This separates data models from business logic and makes the code more maintainable."""
         },
+
+        # 3. REPLACE_CONDITIONAL_WITH_POLYMORPHISM
         {
-            'query': 'How to replace this complex conditional with polymorphism?',
-            'original_code': '''def process_shape(shape_type, dimensions):
-    if shape_type == 'circle':
-        return 3.14159 * dimensions['radius'] ** 2
-    elif shape_type == 'rectangle':
-        return dimensions['width'] * dimensions['height']
-    elif shape_type == 'triangle':
-        return 0.5 * dimensions['base'] * dimensions['height']
-    else:
-        raise ValueError("Unknown shape type")''',
-            'reference_answer': """Use polymorphism with classes:
+            'query': 'How can I replace these complex conditional statements with a more extensible design?',
+            'original_code': '''def calculate_shipping_cost(package_type, weight, distance, delivery_speed):
+    if package_type == 'standard':
+        base_cost = 5.00
+        if delivery_speed == 'express':
+            base_cost *= 1.5
+        elif delivery_speed == 'overnight':
+            base_cost *= 2.0
+        
+        weight_cost = weight * 0.50
+        distance_cost = distance * 0.02
+        return base_cost + weight_cost + distance_cost
+    
+    elif package_type == 'fragile':
+        base_cost = 8.00
+        if delivery_speed == 'express':
+            base_cost *= 1.8
+        elif delivery_speed == 'overnight':
+            base_cost *= 2.5
+        
+        weight_cost = weight * 0.75
+        distance_cost = distance * 0.03
+        fragile_surcharge = 3.00
+        return base_cost + weight_cost + distance_cost + fragile_surcharge
+    
+    elif package_type == 'hazardous':
+        base_cost = 15.00
+        if delivery_speed == 'standard':
+            # Hazardous can only be express or overnight
+            return None
+        elif delivery_speed == 'express':
+            base_cost *= 2.0
+        elif delivery_speed == 'overnight':
+            base_cost *= 3.0
+        
+        weight_cost = weight * 1.00
+        distance_cost = distance * 0.05
+        hazmat_fee = 10.00
+        return base_cost + weight_cost + distance_cost + hazmat_fee''',
+            'reference_answer': """Use polymorphism to eliminate complex conditionals:
 
 ```python
 from abc import ABC, abstractmethod
 
-class Shape(ABC):
+class ShippingCalculator(ABC):
     @abstractmethod
-    def calculate_area(self):
+    def calculate_cost(self, weight, distance, delivery_speed):
         pass
 
-class Circle(Shape):
-    def __init__(self, radius):
-        self.radius = radius
+class StandardShipping(ShippingCalculator):
+    def calculate_cost(self, weight, distance, delivery_speed):
+        base_cost = 5.00 * self._get_speed_multiplier(delivery_speed)
+        return base_cost + (weight * 0.50) + (distance * 0.02)
     
-    def calculate_area(self):
-        return 3.14159 * self.radius ** 2
+    def _get_speed_multiplier(self, speed):
+        return {'standard': 1.0, 'express': 1.5, 'overnight': 2.0}[speed]
 
-class Rectangle(Shape):
-    def __init__(self, width, height):
-        self.width = width
-        self.height = height
+class FragileShipping(ShippingCalculator):
+    def calculate_cost(self, weight, distance, delivery_speed):
+        base_cost = 8.00 * self._get_speed_multiplier(delivery_speed)
+        return base_cost + (weight * 0.75) + (distance * 0.03) + 3.00
+```
+
+This approach makes adding new package types easy without modifying existing code."""
+        },
+
+        # 4. INTRODUCE_PARAMETER_OBJECT
+        {
+            'query': 'This function has too many parameters. How can I simplify the parameter list?',
+            'original_code': '''def create_employee_profile(first_name, last_name, email, phone, department, 
+                            position, salary, start_date, manager_id, office_location,
+                            emergency_contact_name, emergency_contact_phone, 
+                            benefits_plan, vacation_days, sick_days, remote_work_eligible):
     
-    def calculate_area(self):
-        return self.width * self.height
-
-class Triangle(Shape):
-    def __init__(self, base, height):
-        self.base = base
-        self.height = height
+    # Validate required fields
+    if not first_name or not last_name or not email:
+        return None
     
-    def calculate_area(self):
-        return 0.5 * self.base * self.height
+    if not department or not position:
+        return None
+    
+    # Format data
+    full_name = f"{first_name} {last_name}"
+    employee_id = f"{department[:3].upper()}{len(all_employees) + 1:04d}"
+    
+    # Create profile
+    profile = {
+        'employee_id': employee_id,
+        'personal_info': {
+            'first_name': first_name,
+            'last_name': last_name,
+            'full_name': full_name,
+            'email': email,
+            'phone': phone
+        },
+        'employment_info': {
+            'department': department,
+            'position': position,
+            'salary': salary,
+            'start_date': start_date,
+            'manager_id': manager_id,
+            'office_location': office_location
+        },
+        'emergency_contact': {
+            'name': emergency_contact_name,
+            'phone': emergency_contact_phone
+        },
+        'benefits': {
+            'plan': benefits_plan,
+            'vacation_days': vacation_days,
+            'sick_days': sick_days,
+            'remote_eligible': remote_work_eligible
+        }
+    }
+    
+    return profile''',
+            'reference_answer': """Group related parameters into data structures:
 
-def process_shape(shape: Shape):
-    return shape.calculate_area()
-```"""
+```python
+from dataclasses import dataclass
+from typing import Optional
+from datetime import date
+
+@dataclass
+class PersonalInfo:
+    first_name: str
+    last_name: str
+    email: str
+    phone: str
+    
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}"
+
+@dataclass
+class EmploymentInfo:
+    department: str
+    position: str
+    salary: float
+    start_date: date
+    manager_id: Optional[str]
+    office_location: str
+
+@dataclass
+class EmergencyContact:
+    name: str
+    phone: str
+
+@dataclass
+class BenefitsInfo:
+    plan: str
+    vacation_days: int
+    sick_days: int
+    remote_eligible: bool
+
+@dataclass
+class EmployeeData:
+    personal: PersonalInfo
+    employment: EmploymentInfo
+    emergency_contact: EmergencyContact
+    benefits: BenefitsInfo
+
+def create_employee_profile(employee_data: EmployeeData) -> Optional[dict]:
+    # Now validation and processing is much cleaner
+    if not employee_data.personal.first_name or not employee_data.personal.email:
+        return None
+    
+    employee_id = f"{employee_data.employment.department[:3].upper()}{len(all_employees) + 1:04d}"
+    # ... rest of processing
+```
+
+This eliminates the long parameter list and groups related data logically."""
+        },
+
+        # 5. REPLACE_LOOP_WITH_COMPREHENSION
+        {
+            'query': 'How can I make these loops more Pythonic and concise?',
+            'original_code': '''def process_sales_data(sales_records):
+    # Filter active sales
+    active_sales = []
+    for sale in sales_records:
+        if sale.get('status') == 'completed' and sale.get('amount', 0) > 0:
+            active_sales.append(sale)
+    
+    # Calculate commission for each sale
+    commissioned_sales = []
+    for sale in active_sales:
+        commission_rate = 0.05 if sale.get('amount', 0) < 1000 else 0.08
+        commissioned_sale = {
+            'sale_id': sale['id'],
+            'amount': sale['amount'],
+            'commission': sale['amount'] * commission_rate,
+            'salesperson': sale['salesperson']
+        }
+        commissioned_sales.append(commissioned_sale)
+    
+    # Group by salesperson
+    grouped_sales = {}
+    for sale in commissioned_sales:
+        person = sale['salesperson']
+        if person not in grouped_sales:
+            grouped_sales[person] = []
+        grouped_sales[person].append(sale)
+    
+    # Calculate totals per salesperson
+    salesperson_totals = {}
+    for person, sales in grouped_sales.items():
+        total_sales = 0
+        total_commission = 0
+        for sale in sales:
+            total_sales += sale['amount']
+            total_commission += sale['commission']
+        
+        salesperson_totals[person] = {
+            'total_sales': total_sales,
+            'total_commission': total_commission,
+            'sale_count': len(sales)
+        }
+    
+    return salesperson_totals''',
+            'reference_answer': """Use Python comprehensions and built-in functions:
+
+```python
+from collections import defaultdict
+
+def process_sales_data(sales_records):
+    # Filter and transform in one comprehension
+    commissioned_sales = [
+        {
+            'sale_id': sale['id'],
+            'amount': sale['amount'],
+            'commission': sale['amount'] * (0.05 if sale['amount'] < 1000 else 0.08),
+            'salesperson': sale['salesperson']
+        }
+        for sale in sales_records
+        if sale.get('status') == 'completed' and sale.get('amount', 0) > 0
+    ]
+    
+    # Group using defaultdict and comprehension
+    grouped_sales = defaultdict(list)
+    for sale in commissioned_sales:
+        grouped_sales[sale['salesperson']].append(sale)
+    
+    # Calculate totals with comprehension
+    return {
+        person: {
+            'total_sales': sum(sale['amount'] for sale in sales),
+            'total_commission': sum(sale['commission'] for sale in sales),
+            'sale_count': len(sales)
+        }
+        for person, sales in grouped_sales.items()
+    }
+```
+
+This is more concise and leverages Python's powerful comprehension syntax."""
+        },
+
+        # 6. ADD_TYPE_HINTS
+        {
+            'query': 'How can I add proper type annotations to improve code clarity and catch errors?',
+            'original_code': '''def analyze_user_behavior(user_data, start_date, end_date, metrics=None):
+    """Analyze user behavior patterns"""
+    if not user_data or not start_date:
+        return None
+    
+    if metrics is None:
+        metrics = ['page_views', 'session_duration', 'bounce_rate']
+    
+    results = {}
+    for user_id, sessions in user_data.items():
+        user_metrics = {}
+        filtered_sessions = []
+        
+        for session in sessions:
+            session_date = session['date']
+            if start_date <= session_date <= end_date:
+                filtered_sessions.append(session)
+        
+        if not filtered_sessions:
+            continue
+        
+        if 'page_views' in metrics:
+            total_views = sum(session.get('page_views', 0) for session in filtered_sessions)
+            user_metrics['avg_page_views'] = total_views / len(filtered_sessions)
+        
+        if 'session_duration' in metrics:
+            total_duration = sum(session.get('duration', 0) for session in filtered_sessions)
+            user_metrics['avg_session_duration'] = total_duration / len(filtered_sessions)
+        
+        results[user_id] = user_metrics
+    
+    return results''',
+            'reference_answer': """Add comprehensive type hints for better clarity:
+
+```python
+from typing import Dict, List, Optional, Union, Any
+from datetime import date, datetime
+
+SessionData = Dict[str, Union[str, int, float, date]]
+UserData = Dict[str, List[SessionData]]
+MetricsResult = Dict[str, float]
+AnalysisResult = Dict[str, MetricsResult]
+
+def analyze_user_behavior(
+    user_data: UserData,
+    start_date: date,
+    end_date: date,
+    metrics: Optional[List[str]] = None
+) -> Optional[AnalysisResult]:
+    \"\"\"Analyze user behavior patterns within date range.
+    
+    Args:
+        user_data: Dictionary mapping user IDs to session data
+        start_date: Analysis period start date
+        end_date: Analysis period end date  
+        metrics: List of metrics to calculate (defaults to standard set)
+        
+    Returns:
+        Dictionary of user metrics or None if invalid input
+    \"\"\"
+    if not user_data or not start_date:
+        return None
+    
+    if metrics is None:
+        metrics = ['page_views', 'session_duration', 'bounce_rate']
+    
+    results: AnalysisResult = {}
+    
+    for user_id, sessions in user_data.items():
+        filtered_sessions = _filter_sessions_by_date(sessions, start_date, end_date)
+        if not filtered_sessions:
+            continue
+            
+        user_metrics = _calculate_user_metrics(filtered_sessions, metrics)
+        results[user_id] = user_metrics
+    
+    return results
+
+def _filter_sessions_by_date(
+    sessions: List[SessionData], 
+    start_date: date, 
+    end_date: date
+) -> List[SessionData]:
+    \"\"\"Filter sessions within date range.\"\"\"
+    return [
+        session for session in sessions
+        if start_date <= session['date'] <= end_date
+    ]
+```
+
+Type hints make the function interface clear and enable better IDE support."""
+        },
+
+        # 7. IMPROVE_ERROR_HANDLING
+        {
+            'query': 'How can I add proper error handling and validation to make this code more robust?',
+            'original_code': '''def process_payment_data(payment_file, output_file):
+    """Process payment data from CSV file"""
+    
+    file = open(payment_file, 'r')
+    lines = file.readlines()
+    file.close()
+    
+    processed_payments = []
+    
+    for line in lines[1:]:  # Skip header
+        parts = line.strip().split(',')
+        
+        payment_id = parts[0]
+        amount = float(parts[1])
+        currency = parts[2]
+        date_str = parts[3]
+        
+        # Convert to USD
+        if currency == 'EUR':
+            usd_amount = amount * 1.1
+        elif currency == 'GBP':
+            usd_amount = amount * 1.3
+        else:
+            usd_amount = amount
+        
+        processed_payment = {
+            'id': payment_id,
+            'original_amount': amount,
+            'currency': currency,
+            'usd_amount': usd_amount,
+            'date': date_str
+        }
+        
+        processed_payments.append(processed_payment)
+    
+    # Save results
+    output = open(output_file, 'w')
+    for payment in processed_payments:
+        output.write(f"{payment['id']},{payment['usd_amount']},{payment['date']}\\n")
+    output.close()
+    
+    return len(processed_payments)''',
+            'reference_answer': """Add comprehensive error handling and validation:
+
+```python
+import csv
+import logging
+from typing import List, Dict, Any
+from pathlib import Path
+from decimal import Decimal, InvalidOperation
+
+logger = logging.getLogger(__name__)
+
+class PaymentProcessingError(Exception):
+    \"\"\"Custom exception for payment processing errors.\"\"\"
+    pass
+
+def process_payment_data(payment_file: str, output_file: str) -> int:
+    \"\"\"Process payment data with proper error handling.
+    
+    Args:
+        payment_file: Path to input CSV file
+        output_file: Path to output CSV file
+        
+    Returns:
+        Number of successfully processed payments
+        
+    Raises:
+        FileNotFoundError: If input file doesn't exist
+        PaymentProcessingError: If processing fails
+        PermissionError: If files cannot be accessed
+    \"\"\"
+    
+    # Validate input files
+    input_path = Path(payment_file)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Payment file not found: {payment_file}")
+    
+    if not input_path.is_file():
+        raise PaymentProcessingError(f"Input path is not a file: {payment_file}")
+    
+    try:
+        processed_payments = _read_and_process_payments(input_path)
+        _write_processed_payments(processed_payments, output_file)
+        return len(processed_payments)
+        
+    except PermissionError:
+        logger.error(f"Permission denied accessing files")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error processing payments: {e}")
+        raise PaymentProcessingError(f"Processing failed: {e}")
+
+def _read_and_process_payments(file_path: Path) -> List[Dict[str, Any]]:
+    \"\"\"Read and validate payment data.\"\"\"
+    processed_payments = []
+    
+    try:
+        with file_path.open('r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            
+            for row_num, row in enumerate(reader, 2):  # Start at 2 for header
+                try:
+                    payment = _process_payment_row(row, row_num)
+                    processed_payments.append(payment)
+                except ValueError as e:
+                    logger.warning(f"Skipping invalid row {row_num}: {e}")
+                    continue
+                    
+    except UnicodeDecodeError:
+        raise PaymentProcessingError("Invalid file encoding")
+    
+    return processed_payments
+
+def _process_payment_row(row: Dict[str, str], row_num: int) -> Dict[str, Any]:
+    \"\"\"Process and validate a single payment row.\"\"\"
+    try:
+        payment_id = row.get('payment_id', '').strip()
+        if not payment_id:
+            raise ValueError("Missing payment ID")
+        
+        amount_str = row.get('amount', '').strip()
+        if not amount_str:
+            raise ValueError("Missing amount")
+            
+        amount = Decimal(amount_str)
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+        
+        currency = row.get('currency', '').strip().upper()
+        if currency not in ['USD', 'EUR', 'GBP']:
+            raise ValueError(f"Unsupported currency: {currency}")
+        
+        usd_amount = _convert_to_usd(amount, currency)
+        
+        return {
+            'id': payment_id,
+            'original_amount': float(amount),
+            'currency': currency,
+            'usd_amount': float(usd_amount),
+            'date': row.get('date', '').strip()
+        }
+        
+    except (InvalidOperation, ValueError) as e:
+        raise ValueError(f"Row {row_num} validation failed: {e}")
+```
+
+This adds proper validation, logging, and graceful error handling."""
+        },
+
+        # 8. ELIMINATE_CODE_DUPLICATION (already in original test cases but adding dataset-specific version)
+        {
+            'query': 'I notice a lot of repeated code patterns. How can I eliminate this duplication?',
+            'original_code': '''def generate_user_report(user_type):
+    """Generate reports for different user types"""
+    if user_type == 'admin':
+        # Get admin data
+        users = get_admin_users()
+        
+        # Validate data
+        if not users:
+            return "No admin users found"
+        
+        # Format data
+        report_data = []
+        for user in users:
+            formatted_user = {
+                'name': user['name'].title(),
+                'email': user['email'].lower(),
+                'last_login': format_date(user['last_login']),
+                'permissions': ', '.join(user['permissions'])
+            }
+            report_data.append(formatted_user)
+        
+        # Generate report
+        report = "ADMIN USER REPORT\\n"
+        report += "=" * 50 + "\\n"
+        for user in report_data:
+            report += f"Name: {user['name']}\\n"
+            report += f"Email: {user['email']}\\n"
+            report += f"Last Login: {user['last_login']}\\n"
+            report += f"Permissions: {user['permissions']}\\n"
+            report += "-" * 30 + "\\n"
+        
+        return report
+    
+    elif user_type == 'customer':
+        # Get customer data
+        users = get_customer_users()
+        
+        # Validate data
+        if not users:
+            return "No customer users found"
+        
+        # Format data
+        report_data = []
+        for user in users:
+            formatted_user = {
+                'name': user['name'].title(),
+                'email': user['email'].lower(),
+                'last_login': format_date(user['last_login']),
+                'orders': str(user.get('order_count', 0))
+            }
+            report_data.append(formatted_user)
+        
+        # Generate report
+        report = "CUSTOMER USER REPORT\\n"
+        report += "=" * 50 + "\\n"
+        for user in report_data:
+            report += f"Name: {user['name']}\\n"
+            report += f"Email: {user['email']}\\n"
+            report += f"Last Login: {user['last_login']}\\n"
+            report += f"Orders: {user['orders']}\\n"
+            report += "-" * 30 + "\\n"
+        
+        return report''',
+            'reference_answer': """Extract common patterns and use configuration:
+
+```python
+from typing import Dict, List, Callable, Any
+
+def generate_user_report(user_type: str) -> str:
+    \"\"\"Generate reports using configurable templates.\"\"\"
+    
+    report_configs = {
+        'admin': {
+            'data_source': get_admin_users,
+            'title': 'ADMIN USER REPORT',
+            'fields': {
+                'name': lambda u: u['name'].title(),
+                'email': lambda u: u['email'].lower(), 
+                'last_login': lambda u: format_date(u['last_login']),
+                'permissions': lambda u: ', '.join(u['permissions'])
+            }
+        },
+        'customer': {
+            'data_source': get_customer_users,
+            'title': 'CUSTOMER USER REPORT',
+            'fields': {
+                'name': lambda u: u['name'].title(),
+                'email': lambda u: u['email'].lower(),
+                'last_login': lambda u: format_date(u['last_login']),
+                'orders': lambda u: str(u.get('order_count', 0))
+            }
+        }
+    }
+    
+    if user_type not in report_configs:
+        return f"Unknown user type: {user_type}"
+    
+    config = report_configs[user_type]
+    users = config['data_source']()
+    
+    if not users:
+        return f"No {user_type} users found"
+    
+    return _build_report(users, config)
+
+def _build_report(users: List[Dict], config: Dict[str, Any]) -> str:
+    \"\"\"Build report using common template.\"\"\"
+    report_lines = [config['title'], "=" * 50]
+    
+    for user in users:
+        for field_name, formatter in config['fields'].items():
+            value = formatter(user)
+            report_lines.append(f"{field_name.title()}: {value}")
+        report_lines.append("-" * 30)
+    
+    return "\\n".join(report_lines)
+```
+
+This eliminates duplication through parameterization and shared templates."""
+        },
+
+        # 9. IMPROVE_NAMING (already in original but adding dataset version)
+        {
+            'query': 'These variable and function names are unclear. How can I improve the naming?',
+            'original_code': '''def calc_stuff(d, p, t):
+    """Calculate some financial stuff"""
+    r = []
+    
+    for x in d:
+        if x['s'] == 'a':
+            tmp = {}
+            tmp['id'] = x['uid']
+            tmp['amt'] = x['val'] * p / 100
+            
+            if t == 'q':
+                tmp['amt'] = tmp['amt'] * 4
+            elif t == 'm':
+                tmp['amt'] = tmp['amt'] * 12
+                
+            tmp['desc'] = f"Calc for {x['nm']}"
+            r.append(tmp)
+    
+    return r''',
+            'reference_answer': """Use descriptive, meaningful names:
+
+```python
+def calculate_financial_projections(
+    account_data: List[Dict], 
+    interest_rate_percent: float, 
+    projection_period: str
+) -> List[Dict]:
+    \"\"\"Calculate financial projections for active accounts.
+    
+    Args:
+        account_data: List of account information dictionaries
+        interest_rate_percent: Annual interest rate as percentage
+        projection_period: 'q' for quarterly, 'm' for monthly
+        
+    Returns:
+        List of financial projections for active accounts
+    \"\"\"
+    financial_projections = []
+    
+    for account in account_data:
+        if account['status'] != 'active':
+            continue
+            
+        projection = {
+            'account_id': account['user_id'],
+            'projected_amount': _calculate_projected_amount(
+                account['value'], 
+                interest_rate_percent, 
+                projection_period
+            ),
+            'description': f"Financial projection for {account['name']}"
+        }
+        
+        financial_projections.append(projection)
+    
+    return financial_projections
+
+def _calculate_projected_amount(
+    principal_amount: float, 
+    annual_rate_percent: float, 
+    period_type: str
+) -> float:
+    \"\"\"Calculate projected amount based on period type.\"\"\"
+    base_amount = principal_amount * annual_rate_percent / 100
+    
+    period_multipliers = {
+        'q': 4,   # quarterly
+        'm': 12   # monthly
+    }
+    
+    multiplier = period_multipliers.get(period_type, 1)
+    return base_amount * multiplier
+```
+
+Clear naming makes the code self-documenting and easier to maintain."""
+        },
+
+        # 10. OPTIMIZE_PERFORMANCE (already in original but adding dataset version)
+        {
+            'query': 'This code is running slowly with large datasets. How can I optimize the performance?',
+            'original_code': '''def find_matching_records(dataset1, dataset2, match_field):
+    """Find records that match between two datasets"""
+    matches = []
+    
+    for record1 in dataset1:
+        for record2 in dataset2:
+            if record1.get(match_field) == record2.get(match_field):
+                if record1.get(match_field) is not None:
+                    match_info = {
+                        'record1': record1,
+                        'record2': record2,
+                        'match_value': record1[match_field]
+                    }
+                    
+                    # Check if we already have this match
+                    duplicate = False
+                    for existing in matches:
+                        if (existing['record1'] == record1 and 
+                            existing['record2'] == record2):
+                            duplicate = True
+                            break
+                    
+                    if not duplicate:
+                        matches.append(match_info)
+    
+    return matches''',
+            'reference_answer': """Optimize using hash-based lookups for O(n) performance:
+
+```python
+from typing import List, Dict, Any, Set
+from collections import defaultdict
+
+def find_matching_records(
+    dataset1: List[Dict[str, Any]], 
+    dataset2: List[Dict[str, Any]], 
+    match_field: str
+) -> List[Dict[str, Any]]:
+    \"\"\"Find matching records using optimized hash lookup.
+    
+    Time complexity: O(n + m) instead of O(n * m)
+    \"\"\"
+    # Create hash map for dataset2 for O(1) lookups
+    dataset2_by_field = defaultdict(list)
+    for record in dataset2:
+        field_value = record.get(match_field)
+        if field_value is not None:
+            dataset2_by_field[field_value].append(record)
+    
+    matches = []
+    seen_pairs: Set[tuple] = set()
+    
+    for record1 in dataset1:
+        field_value = record1.get(match_field)
+        if field_value is None:
+            continue
+            
+        # O(1) lookup instead of O(n) iteration
+        for record2 in dataset2_by_field[field_value]:
+            # Use tuple of IDs to avoid duplicate checking
+            pair_key = (id(record1), id(record2))
+            if pair_key not in seen_pairs:
+                matches.append({
+                    'record1': record1,
+                    'record2': record2,
+                    'match_value': field_value
+                })
+                seen_pairs.add(pair_key)
+    
+    return matches
+
+# Alternative using set operations for even better performance
+def find_matching_records_fast(
+    dataset1: List[Dict[str, Any]], 
+    dataset2: List[Dict[str, Any]], 
+    match_field: str
+) -> List[Dict[str, Any]]:
+    \"\"\"Ultra-fast version using set intersection.\"\"\"
+    values1 = {(i, record.get(match_field)) for i, record in enumerate(dataset1) 
+               if record.get(match_field) is not None}
+    values2 = {(i, record.get(match_field)) for i, record in enumerate(dataset2) 
+               if record.get(match_field) is not None}
+    
+    # Find common values
+    common_values = {v for _, v in values1} & {v for _, v in values2}
+    
+    # Build matches efficiently
+    matches = []
+    for i1, val in values1:
+        if val in common_values:
+            for i2, val2 in values2:
+                if val == val2:
+                    matches.append({
+                        'record1': dataset1[i1],
+                        'record2': dataset2[i2], 
+                        'match_value': val
+                    })
+    
+    return matches
+```
+
+This optimization reduces time complexity from O(n²) to O(n) using hash-based lookups."""
         }
     ]
 
@@ -506,7 +1266,8 @@ def run_model_optimization(evaluation_results: Dict[str, Any],
     logger.info("Running NSGA-II multi-objective optimization...")
     
     try:
-        optimization_results = run_nsga2_optimization(evaluation_results)
+        
+        optimization_results = run_fixed_nsga2_optimization(evaluation_results)
         
         print(f"\n{'='*80}")
         print("NSGA-II OPTIMIZATION RESULTS & COMPARISON")
@@ -548,12 +1309,21 @@ def run_model_optimization(evaluation_results: Dict[str, Any],
         print("TOP 5 PARETO OPTIMAL SOLUTIONS")
         print(f"{'='*50}")
         
-        pareto_solutions = optimization_results.get('all_pareto_solutions', [])[:5]
-        for i, solution in enumerate(pareto_solutions, 1):
+        # Convert to list of solutions
+        pareto_solutions = [
+            {'model': model_name, 'objectives': scores}
+            for model_name, scores in pre_optimization_metrics.items()
+        ]
+
+        # Optional: sort by average score if desired
+        pareto_solutions.sort(key=lambda s: sum(s['objectives'].values()) / len(s['objectives']), reverse=True)
+
+        # Print top 5
+        for i, solution in enumerate(pareto_solutions[:5], 1):
             model = solution.get('model', 'Unknown')
             objectives = solution.get('objectives', {})
             avg_score = sum(objectives.values()) / len(objectives) if objectives else 0
-            print(f"{i}. {model:<25} (Avg Score: {avg_score:.4f})")
+            print(f"{i}. {model:<30} (Avg Score: {avg_score:.4f})")
         
         return optimization_results
         

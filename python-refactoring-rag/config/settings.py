@@ -68,9 +68,9 @@ class EvaluationConfig:
 @dataclass
 class OptimizationConfig:
     """Configuration for NSGA-II optimization."""
-    population_size: int = 40
-    n_generations: int = 20
-    crossover_prob: float = 0.8
+    population_size: int = 60
+    n_generations: int = 100
+    crossover_prob: float = 0.9
     mutation_prob: float = 0.3
     crossover_eta: float = 10
     mutation_eta: float = 15
