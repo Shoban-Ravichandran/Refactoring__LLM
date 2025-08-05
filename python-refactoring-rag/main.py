@@ -1,11 +1,10 @@
-"""Main entry point for the Python Code Refactoring RAG System."""
+"""Enhanced main entry point with comprehensive evaluation and improved interactive mode."""
 
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any,List
-
+from typing import Dict, Any, List
 
 # Setup logging
 logging.basicConfig(
@@ -34,83 +33,18 @@ from models.evaluation.rag_evaluator import RAGEvaluator
 from models.optimization.nsga2_optimizer import run_nsga2_optimization
 from utils.logging_utils import setup_enhanced_logging
 
-
-def setup_system() -> RefactoringRAGSystem:
-    """Initialize and setup the RAG system."""
-    logger.info("Initializing Python Code Refactoring RAG System...")
-    
-    # Get LLM configurations
-    try:
-        llm_configs = get_default_llm_configs()
-        if not llm_configs:
-            logger.error("No valid LLM configurations found. Please check your API keys.")
-            sys.exit(1)
-        
-        logger.info(f"Loaded {len(llm_configs)} LLM configurations")
-        
-    except Exception as e:
-        logger.error(f"Error loading LLM configurations: {e}")
-        sys.exit(1)
-    
-    # Initialize RAG system
-    system = RefactoringRAGSystem(
-        llm_configs=llm_configs,
-        qdrant_url=os.getenv('QDRANT_URL'),
-        qdrant_api_key=os.getenv('QDRANT_API_KEY')
-    )
-    
-    # Setup with enhanced configuration
-    config = get_default_config()
-    config['pdf'] = PDFConfig(
-        max_chunk_size=1000,
-        min_chunk_size=100,
-        overlap_size=50,
-        extract_code_blocks=True,
-        use_pymupdf=True
-    )
-    
-    system.setup(config=config)
-    
-    return system
+# Try to import enhanced display manager
+try:
+    from interactive_display_manager import create_interactive_session
+    ENHANCED_DISPLAY_AVAILABLE = True
+except ImportError:
+    ENHANCED_DISPLAY_AVAILABLE = False
+    logger.warning("Enhanced display manager not found. Using built-in interactive mode.")
 
 
-def process_data(system: RefactoringRAGSystem, 
-                dataset_path: str = None,
-                pdf_paths: list = None,
-                force_reindex: bool = False) -> Dict[str, int]:
-    """Process and index data sources."""
-    results = {'dataset_chunks': 0, 'pdf_chunks': 0}
-    
-    # Process dataset if provided
-    if dataset_path and Path(dataset_path).exists():
-        logger.info(f"Processing dataset: {dataset_path}")
-        dataset_chunks = system.process_dataset(dataset_path, force_reindex)
-        results['dataset_chunks'] = dataset_chunks
-        logger.info(f"Processed {dataset_chunks} chunks from dataset")
-    elif dataset_path:
-        logger.warning(f"Dataset file not found: {dataset_path}")
-    
-    # Process PDFs if provided
-    if pdf_paths:
-        valid_pdfs = [path for path in pdf_paths if Path(path).exists()]
-        logger.info(f"Found {len(valid_pdfs)} valid PDF files to process which are: {valid_pdfs}")
-        if valid_pdfs:
-            logger.info(f"Processing {len(valid_pdfs)} PDF files")
-            pdf_chunks = system.process_pdfs(valid_pdfs)
-            results['pdf_chunks'] = pdf_chunks
-            logger.info(f"Processed {pdf_chunks} chunks from PDFs")
-        else:
-            logger.warning("No valid PDF files found")
-    
-    return results
-
-
-def run_evaluation(system: RefactoringRAGSystem) -> Dict[str, Any]:
-    """Run system evaluation with test cases."""
-    logger.info("Running system evaluation...")
-    
-    # Define test cases
-    test_cases = [
+def get_enhanced_test_cases():
+    """Extended set of test cases for comprehensive evaluation."""
+    return [
         {
             'query': 'How can I refactor this nested function to be more readable?',
             'original_code': '''def process_orders(orders):
@@ -188,8 +122,257 @@ def calculate_discount(customer, amount, product_type):
 ```
 
 This approach uses a lookup table instead of nested conditionals."""
+        },
+        {
+            'query': 'How can I eliminate code duplication in this class?',
+            'original_code': '''class UserProcessor:
+    def process_admin_user(self, user_data):
+        if not user_data.get('email'):
+            raise ValueError("Email required")
+        if not user_data.get('name'):
+            raise ValueError("Name required")
+        user = {
+            'email': user_data['email'].lower(),
+            'name': user_data['name'].strip(),
+            'role': 'admin',
+            'permissions': ['read', 'write', 'delete']
+        }
+        return user
+    
+    def process_regular_user(self, user_data):
+        if not user_data.get('email'):
+            raise ValueError("Email required")
+        if not user_data.get('name'):
+            raise ValueError("Name required")
+        user = {
+            'email': user_data['email'].lower(),
+            'name': user_data['name'].strip(),
+            'role': 'user',
+            'permissions': ['read']
+        }
+        return user''',
+            'reference_answer': """Extract common validation and processing logic into shared methods:
+
+```python
+class UserProcessor:
+    def _validate_user_data(self, user_data):
+        if not user_data.get('email'):
+            raise ValueError("Email required")
+        if not user_data.get('name'):
+            raise ValueError("Name required")
+    
+    def _create_base_user(self, user_data, role, permissions):
+        self._validate_user_data(user_data)
+        return {
+            'email': user_data['email'].lower(),
+            'name': user_data['name'].strip(),
+            'role': role,
+            'permissions': permissions
+        }
+    
+    def process_admin_user(self, user_data):
+        return self._create_base_user(user_data, 'admin', ['read', 'write', 'delete'])
+    
+    def process_regular_user(self, user_data):
+        return self._create_base_user(user_data, 'user', ['read'])
+```"""
+        },
+        {
+            'query': 'How to improve the naming and readability of this function?',
+            'original_code': '''def proc_data(d):
+    r = []
+    for x in d:
+        if x['s'] == 'a' and x['v'] > 0:
+            tmp = {'id': x['id'], 'val': x['v'] * 2, 'cat': 'pos'}
+            r.append(tmp)
+        elif x['s'] == 'a' and x['v'] <= 0:
+            tmp = {'id': x['id'], 'val': abs(x['v']), 'cat': 'neg'}
+            r.append(tmp)
+    return r''',
+            'reference_answer': """Improve naming and add clear structure:
+
+```python
+def process_active_data_entries(data_entries):
+    \"\"\"Process active data entries and categorize by value.\"\"\"
+    processed_results = []
+    
+    for entry in data_entries:
+        if entry['status'] != 'active':
+            continue
+            
+        processed_entry = {
+            'id': entry['id'],
+            'value': entry['value'] * 2 if entry['value'] > 0 else abs(entry['value']),
+            'category': 'positive' if entry['value'] > 0 else 'negative'
+        }
+        processed_results.append(processed_entry)
+    
+    return processed_results
+```"""
+        },
+        {
+            'query': 'How can I optimize this slow loop performance?',
+            'original_code': '''def find_common_elements(list1, list2):
+    common = []
+    for item1 in list1:
+        for item2 in list2:
+            if item1 == item2 and item1 not in common:
+                common.append(item1)
+    return common''',
+            'reference_answer': """Use set operations for O(n) performance:
+
+```python
+def find_common_elements(list1, list2):
+    \"\"\"Find common elements using set intersection for better performance.\"\"\"
+    return list(set(list1) & set(list2))
+
+# Alternative preserving order:
+def find_common_elements_ordered(list1, list2):
+    \"\"\"Find common elements preserving order from first list.\"\"\"
+    set2 = set(list2)
+    seen = set()
+    common = []
+    
+    for item in list1:
+        if item in set2 and item not in seen:
+            common.append(item)
+            seen.add(item)
+    
+    return common
+```"""
+        },
+        {
+            'query': 'How to replace this complex conditional with polymorphism?',
+            'original_code': '''def process_shape(shape_type, dimensions):
+    if shape_type == 'circle':
+        return 3.14159 * dimensions['radius'] ** 2
+    elif shape_type == 'rectangle':
+        return dimensions['width'] * dimensions['height']
+    elif shape_type == 'triangle':
+        return 0.5 * dimensions['base'] * dimensions['height']
+    else:
+        raise ValueError("Unknown shape type")''',
+            'reference_answer': """Use polymorphism with classes:
+
+```python
+from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    @abstractmethod
+    def calculate_area(self):
+        pass
+
+class Circle(Shape):
+    def __init__(self, radius):
+        self.radius = radius
+    
+    def calculate_area(self):
+        return 3.14159 * self.radius ** 2
+
+class Rectangle(Shape):
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+    
+    def calculate_area(self):
+        return self.width * self.height
+
+class Triangle(Shape):
+    def __init__(self, base, height):
+        self.base = base
+        self.height = height
+    
+    def calculate_area(self):
+        return 0.5 * self.base * self.height
+
+def process_shape(shape: Shape):
+    return shape.calculate_area()
+```"""
         }
     ]
+
+
+def setup_system() -> RefactoringRAGSystem:
+    """Initialize and setup the RAG system."""
+    logger.info("Initializing Python Code Refactoring RAG System...")
+    
+    # Get LLM configurations
+    try:
+        llm_configs = get_default_llm_configs()
+        if not llm_configs:
+            logger.error("No valid LLM configurations found. Please check your API keys.")
+            sys.exit(1)
+        
+        logger.info(f"Loaded {len(llm_configs)} LLM configurations")
+        
+    except Exception as e:
+        logger.error(f"Error loading LLM configurations: {e}")
+        sys.exit(1)
+    
+    # Initialize RAG system
+    system = RefactoringRAGSystem(
+        llm_configs=llm_configs,
+        qdrant_url=os.getenv('QDRANT_URL'),
+        qdrant_api_key=os.getenv('QDRANT_API_KEY')
+    )
+    
+    # Setup with enhanced configuration
+    config = get_default_config()
+    config['pdf'] = PDFConfig(
+        max_chunk_size=1000,
+        min_chunk_size=100,
+        overlap_size=50,
+        extract_code_blocks=True,
+        use_pymupdf=True
+    )
+    
+    system.setup(config=config)
+    
+    return system
+
+
+def process_data(system: RefactoringRAGSystem, 
+                dataset_path: str = None,
+                pdf_paths: list = None,
+                force_reindex: bool = False) -> Dict[str, int]:
+    """Process and index data sources with intelligent skip logic."""
+    results = {'dataset_chunks': 0, 'pdf_chunks': 0}
+    
+    # Process dataset if provided
+    if dataset_path and Path(dataset_path).exists():
+        logger.info(f"Processing dataset: {dataset_path}")
+        dataset_chunks = system.process_dataset(dataset_path, force_reindex)
+        results['dataset_chunks'] = dataset_chunks
+        logger.info(f"Processed {dataset_chunks} chunks from dataset")
+    elif dataset_path:
+        logger.warning(f"Dataset file not found: {dataset_path}")
+    
+    # Process PDFs if provided - now with intelligent skip logic
+    if pdf_paths:
+        valid_pdfs = [path for path in pdf_paths if Path(path).exists()]
+        if valid_pdfs:
+            logger.info(f"Found {len(valid_pdfs)} valid PDF files: {[Path(p).name for p in valid_pdfs]}")
+            
+            # Use the enhanced PDF processing with skip logic
+            pdf_chunks = system.process_pdfs(valid_pdfs, force_reindex)
+            results['pdf_chunks'] = pdf_chunks
+            
+            if pdf_chunks > 0:
+                logger.info(f"Processed {pdf_chunks} chunks from PDFs")
+            else:
+                logger.info("No new PDF chunks processed (already up to date)")
+        else:
+            logger.warning("No valid PDF files found")
+    
+    return results
+
+
+def run_evaluation(system: RefactoringRAGSystem) -> Dict[str, Any]:
+    """Run system evaluation with enhanced test cases."""
+    logger.info("Running comprehensive system evaluation...")
+    
+    # Get enhanced test cases
+    test_cases = get_enhanced_test_cases()
     
     # Run evaluation for each available model
     evaluator = RAGEvaluator()
@@ -197,9 +380,16 @@ This approach uses a lookup table instead of nested conditionals."""
     
     evaluation_results = {}
     
+    print(f"\n{'='*80}")
+    print(f"EVALUATING {len(available_models)} MODELS ON {len(test_cases)} TEST CASES")
+    print(f"{'='*80}")
+    
     for model_name in available_models:
         logger.info(f"Evaluating model: {model_name}")
         model_results = []
+        
+        print(f"\n🔍 Testing Model: {model_name}")
+        print("-" * 50)
         
         for i, test_case in enumerate(test_cases):
             logger.info(f"Testing case {i+1}: {test_case['query'][:50]}...")
@@ -231,13 +421,11 @@ This approach uses a lookup table instead of nested conditionals."""
                 # Print brief results
                 if result['success'] and result['rag_metrics']:
                     rag = result['rag_metrics']
-                    print(f"  Model: {model_name}")
-                    print(f"  Context Relevance: {rag.context_relevance:.3f}")
-                    print(f"  Answer Relevance: {rag.answer_relevance:.3f}")
-                    print(f"  Faithfulness: {rag.faithfulness:.3f}")
-                    print(f"  BLEU Score: {rag.bleu_score:.4f}")
-                    print(f"  ROUGE-L Score: {rag.rouge_l_score:.4f}")
-                    print("-" * 50)
+                    print(f"  ✓ Case {i+1}: Context:{rag.context_relevance:.3f} | "
+                          f"Answer:{rag.answer_relevance:.3f} | Faithful:{rag.faithfulness:.3f} | "
+                          f"BLEU:{rag.bleu_score:.4f} | ROUGE:{rag.rouge_l_score:.4f}")
+                else:
+                    print(f"  ✗ Case {i+1}: Failed")
                 
             except Exception as e:
                 logger.error(f"Error evaluating {model_name} on case {i+1}: {e}")
@@ -247,32 +435,125 @@ This approach uses a lookup table instead of nested conditionals."""
                     'success': False,
                     'error': str(e)
                 })
+                print(f"  ✗ Case {i+1}: Error - {str(e)[:50]}...")
         
         evaluation_results[model_name] = model_results
     
     return evaluation_results
 
 
-def run_model_optimization(evaluation_results: Dict[str, Any]) -> Dict[str, Any]:
-    """Run NSGA-II optimization for model selection."""
+def display_evaluation_summary(evaluation_results: Dict[str, Any]):
+    """Display comprehensive evaluation summary."""
+    print(f"\n{'='*80}")
+    print("EVALUATION SUMMARY")
+    print(f"{'='*80}")
+    
+    # Calculate aggregate metrics per model
+    model_aggregates = {}
+    
+    for model_name, results in evaluation_results.items():
+        successful_results = [r for r in results if r['success'] and r.get('rag_metrics')]
+        
+        if successful_results:
+            # Calculate averages
+            avg_context_rel = sum(r['rag_metrics'].context_relevance for r in successful_results) / len(successful_results)
+            avg_answer_rel = sum(r['rag_metrics'].answer_relevance for r in successful_results) / len(successful_results)
+            avg_faithfulness = sum(r['rag_metrics'].faithfulness for r in successful_results) / len(successful_results)
+            avg_completeness = sum(r['rag_metrics'].response_completeness for r in successful_results) / len(successful_results)
+            avg_bleu = sum(r['rag_metrics'].bleu_score for r in successful_results) / len(successful_results)
+            avg_rouge = sum(r['rag_metrics'].rouge_l_score for r in successful_results) / len(successful_results)
+            
+            model_aggregates[model_name] = {
+                'context_relevance': avg_context_rel,
+                'answer_relevance': avg_answer_rel,
+                'faithfulness': avg_faithfulness,
+                'response_completeness': avg_completeness,
+                'bleu_score': avg_bleu,
+                'rouge_l_score': avg_rouge,
+                'success_rate': len(successful_results) / len(results)
+            }
+        else:
+            model_aggregates[model_name] = {
+                'context_relevance': 0.0,
+                'answer_relevance': 0.0,
+                'faithfulness': 0.0,
+                'response_completeness': 0.0,
+                'bleu_score': 0.0,
+                'rouge_l_score': 0.0,
+                'success_rate': 0.0
+            }
+    
+    # Display results table
+    print(f"{'Model':<30} {'Context':<8} {'Answer':<8} {'Faith':<8} {'Complete':<8} {'BLEU':<8} {'ROUGE':<8} {'Success':<8}")
+    print("-" * 88)
+    
+    for model_name, metrics in model_aggregates.items():
+        print(f"{model_name:<30} "
+              f"{metrics['context_relevance']:<8.3f} "
+              f"{metrics['answer_relevance']:<8.3f} "
+              f"{metrics['faithfulness']:<8.3f} "
+              f"{metrics['response_completeness']:<8.3f} "
+              f"{metrics['bleu_score']:<8.4f} "
+              f"{metrics['rouge_l_score']:<8.4f} "
+              f"{metrics['success_rate']:<8.2%}")
+    
+    return model_aggregates
+
+
+def run_model_optimization(evaluation_results: Dict[str, Any], 
+                          pre_optimization_metrics: Dict[str, Any]) -> Dict[str, Any]:
+    """Run NSGA-II optimization and show before/after comparison."""
     logger.info("Running NSGA-II multi-objective optimization...")
     
     try:
         optimization_results = run_nsga2_optimization(evaluation_results)
         
-        print("\n" + "="*60)
-        print("NSGA-II OPTIMIZATION RESULTS")
-        print("="*60)
-        print(f"Best Model: {optimization_results['best_model']}")
-        print(f"Pareto Front Size: {optimization_results['pareto_front_size']}")
-        print(f"Optimization Time: {optimization_results['optimization_time_seconds']:.2f}s")
-        print(f"Algorithm: {optimization_results['algorithm']}")
+        print(f"\n{'='*80}")
+        print("NSGA-II OPTIMIZATION RESULTS & COMPARISON")
+        print(f"{'='*80}")
         
-        best_objectives = optimization_results.get('best_model_objectives', {})
-        if best_objectives:
-            print("\nBest Model Objectives:")
-            for metric, value in best_objectives.items():
-                print(f"  {metric.replace('_', ' ').title()}: {value:.4f}")
+        best_model = optimization_results['best_model']
+        print(f"🏆 Best Model Selected: {best_model}")
+        print(f"📊 Pareto Front Size: {optimization_results['pareto_front_size']}")
+        print(f"⏱️  Optimization Time: {optimization_results['optimization_time_seconds']:.2f}s")
+        print(f"🔧 Algorithm: {optimization_results['algorithm']}")
+        
+        # Show before/after metrics comparison
+        print(f"\n{'='*50}")
+        print("METRICS COMPARISON: BEFORE vs AFTER OPTIMIZATION")
+        print(f"{'='*50}")
+        
+        best_metrics = optimization_results.get('best_model_objectives', {})
+        pre_metrics = pre_optimization_metrics.get(best_model, {})
+        
+        if best_metrics and pre_metrics:
+            print(f"{'Metric':<20} {'Before':<10} {'After':<10} {'Change':<10}")
+            print("-" * 50)
+            
+            for metric in ['context_relevance', 'answer_relevance', 'faithfulness', 
+                          'response_completeness', 'bleu_score', 'rouge_l_score']:
+                if metric in best_metrics and metric in pre_metrics:
+                    before_val = pre_metrics[metric]
+                    after_val = best_metrics[metric]
+                    change = after_val - before_val
+                    change_str = f"+{change:.4f}" if change >= 0 else f"{change:.4f}"
+                    
+                    print(f"{metric.replace('_', ' ').title():<20} "
+                          f"{before_val:<10.4f} "
+                          f"{after_val:<10.4f} "
+                          f"{change_str:<10}")
+        
+        # Show all Pareto solutions
+        print(f"\n{'='*50}")
+        print("TOP 5 PARETO OPTIMAL SOLUTIONS")
+        print(f"{'='*50}")
+        
+        pareto_solutions = optimization_results.get('all_pareto_solutions', [])[:5]
+        for i, solution in enumerate(pareto_solutions, 1):
+            model = solution.get('model', 'Unknown')
+            objectives = solution.get('objectives', {})
+            avg_score = sum(objectives.values()) / len(objectives) if objectives else 0
+            print(f"{i}. {model:<25} (Avg Score: {avg_score:.4f})")
         
         return optimization_results
         
@@ -282,31 +563,126 @@ def run_model_optimization(evaluation_results: Dict[str, Any]) -> Dict[str, Any]
 
 
 # Optional: Install rich library for enhanced UI
-# pip install rich
-
 try:
     from rich.console import Console
     from rich.panel import Panel
     from rich.syntax import Syntax
     from rich.prompt import Prompt
     from rich.text import Text
+    from rich.columns import Columns
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
 
 
-def interactive_mode_rich(system: RefactoringRAGSystem):
-    """Interactive mode using the Rich library for better UI and syntax highlighting."""
+def display_comprehensive_response(system: RefactoringRAGSystem, query: str, 
+                                 best_model: str = None, user_code: str = None):
+    """Display both best model and all models' responses."""
     if not RICH_AVAILABLE:
-        print("Rich library not available. Install with: pip install rich")
-        return interactive_mode_advanced(system)
+        return display_comprehensive_response_basic(system, query, best_model, user_code)
+    
+    console = Console()
+    
+    console.print(f"\n[bold blue]Processing comprehensive response...[/bold blue]")
+    console.print(f"[dim]Query: {query[:100]}{'...' if len(query) > 100 else ''}[/dim]")
+    
+    # Get suggestions from all models
+    all_suggestions = system.get_refactoring_suggestions(query, user_code=user_code)
+    
+    if isinstance(all_suggestions, str):
+        # Single model response
+        console.print(Panel(all_suggestions, title="Response"))
+        return
+    
+    # Display best model first if available
+    if best_model and best_model in all_suggestions:
+        best_suggestion = all_suggestions[best_model]
+        
+        # Truncate if too long but show full content
+        display_text = best_suggestion
+        title = f"🏆 BEST MODEL: {best_model}"
+        
+        console.print(Panel(display_text, title=title, border_style="green"))
+        
+        # Ask if user wants to see all models
+        console.print(f"\n[yellow]Best model response shown above.[/yellow]")
+        show_all = Prompt.ask("Show all models' responses? (y/n)", default="n")
+        
+        if show_all.lower() in ['y', 'yes']:
+            console.print(f"\n[bold cyan]ALL MODELS' RESPONSES:[/bold cyan]")
+            for model_name, suggestion in all_suggestions.items():
+                if model_name != best_model:  # Skip best model as already shown
+                    title = f"📋 {model_name}"
+                    # Create scrollable content for long responses
+                    display_text = suggestion
+                    console.print(Panel(display_text, title=title, border_style="blue"))
+    else:
+        # Show all models
+        console.print(f"\n[bold cyan]ALL MODELS' RESPONSES:[/bold cyan]")
+        for model_name, suggestion in all_suggestions.items():
+            title = f"📋 {model_name}"
+            is_best = model_name == best_model
+            border_style = "green" if is_best else "blue"
+            
+            if is_best:
+                title = f"🏆 {title} (BEST)"
+            
+            display_text = suggestion
+            console.print(Panel(display_text, title=title, border_style=border_style))
+
+
+def display_comprehensive_response_basic(system: RefactoringRAGSystem, query: str, 
+                                       best_model: str = None, user_code: str = None):
+    """Basic display without Rich library."""
+    print(f"\n{'='*80}")
+    print("COMPREHENSIVE RESPONSE")
+    print(f"{'='*80}")
+    print(f"Query: {query}")
+    
+    # Get suggestions from all models
+    all_suggestions = system.get_refactoring_suggestions(query, user_code=user_code)
+    
+    if isinstance(all_suggestions, str):
+        print(f"\nResponse:\n{all_suggestions}")
+        return
+    
+    # Display best model first
+    if best_model and best_model in all_suggestions:
+        print(f"\n🏆 BEST MODEL ({best_model}):")
+        print("-" * 50)
+        print(all_suggestions[best_model])
+        
+        response = input(f"\nShow all models' responses? (y/n): ").lower()
+        if response in ['y', 'yes']:
+            print(f"\n{'='*60}")
+            print("ALL MODELS' RESPONSES")
+            print(f"{'='*60}")
+            
+            for model_name, suggestion in all_suggestions.items():
+                if model_name != best_model:
+                    print(f"\n📋 {model_name}:")
+                    print("-" * 40)
+                    print(suggestion)
+    else:
+        for model_name, suggestion in all_suggestions.items():
+            marker = "🏆" if model_name == best_model else "📋"
+            print(f"\n{marker} {model_name}:")
+            print("-" * 40)
+            print(suggestion)
+
+
+def interactive_mode_enhanced(system: RefactoringRAGSystem, best_model: str = None):
+    """Enhanced interactive mode with best model optimization."""
+    if not RICH_AVAILABLE:
+        return interactive_mode_basic_enhanced(system, best_model)
 
     console = Console()
 
     # Display welcome message
     console.print(Panel.fit(
-        "[bold blue]Python Code Refactoring RAG System[/bold blue]\n"
-        "[yellow]Interactive Mode with Rich UI[/yellow]",
+        f"[bold blue]Python Code Refactoring RAG System[/bold blue]\n"
+        f"[yellow]Enhanced Interactive Mode[/yellow]\n"
+        f"[green]Optimized Best Model: {best_model or 'Not determined'}[/green]",
         title="Welcome"
     ))
 
@@ -315,6 +691,8 @@ def interactive_mode_rich(system: RefactoringRAGSystem):
     console.print("  • [cyan]quit/exit[/cyan] - Exit")
     console.print("  • [cyan]stats[/cyan] - System statistics")
     console.print("  • [cyan]health[/cyan] - Health check")
+    console.print("  • [cyan]best[/cyan] - Show only best model response")
+    console.print("  • [cyan]all[/cyan] - Show all models' responses")
     console.print("  • [cyan]help[/cyan] - Show help")
 
     console.print("\n[bold green]Multi-line Input:[/bold green]")
@@ -323,13 +701,14 @@ def interactive_mode_rich(system: RefactoringRAGSystem):
     console.print("  • Double [yellow]ENTER[/yellow] for short inputs")
 
     session = 0
+    response_mode = "comprehensive"  # "best", "all", or "comprehensive"
 
     while True:
         try:
             session += 1
             console.print(f"\n[bold magenta]Session {session}[/bold magenta]")
 
-            console.print("\n[bold yellow]Enter your query or code:[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter your query or code:[/bold yellow]")
 
             lines = []
             line_num = 1
@@ -386,11 +765,23 @@ def interactive_mode_rich(system: RefactoringRAGSystem):
                 console.print(Panel(health_text, title="Health Check"))
                 continue
 
+            elif command == 'best':
+                response_mode = "best"
+                console.print("[green]Mode set to: Best model only[/green]")
+                continue
+
+            elif command == 'all':
+                response_mode = "all"
+                console.print("[green]Mode set to: All models[/green]")
+                continue
+
             elif command == 'help':
                 help_text = """[bold green]Commands:[/bold green]
 • quit/exit - Exit interactive mode
 • stats - Show system statistics
 • health - Perform system health check
+• best - Show only best model responses
+• all - Show all models' responses
 • help - Display help menu
 
 [bold green]Input Tips:[/bold green]
@@ -401,33 +792,36 @@ def interactive_mode_rich(system: RefactoringRAGSystem):
                 console.print(Panel(help_text, title="Help"))
                 continue
 
-            # Input summary
-            console.print(f"\n[bold blue]Processing your input...[/bold blue]")
+            # Process the query
+            console.print(f"\n[bold blue]Processing your query...[/bold blue]")
             console.print(f"[dim]Input length: {len(query)} characters, {len(lines)} lines[/dim]")
+            console.print(f"[dim]Response mode: {response_mode}[/dim]")
 
-            if any(kw in query.lower() for kw in ['def ', 'class ', 'import ', 'for ']):
-                preview = query[:200] + "..." if len(query) > 200 else query
-                syntax = Syntax(preview, "python", theme="monokai", line_numbers=True)
-                console.print(Panel(syntax, title="Code Preview"))
+            # Detect code in input
+            has_code = any(kw in query.lower() for kw in ['def ', 'class ', 'import ', 'for ', 'if ', 'while ', '```'])
+            user_code = query if has_code else None
 
-            # Get and display suggestions
-            suggestions = system.get_refactoring_suggestions(query)
-
-            if isinstance(suggestions, dict):
-                for model_name, suggestion in suggestions.items():
-                    is_truncated = len(suggestion) > 10000
-                    display_text = suggestion[:10000] + "\n\n[... truncated ...]" if is_truncated else suggestion
-                    title = f"{model_name} Suggestion"
-                    if is_truncated:
-                        title += f" ({len(suggestion)} characters total)"
-                    console.print(Panel(display_text, title=title))
+            if response_mode == "best" and best_model:
+                # Show only best model
+                suggestion = system.get_refactoring_suggestions(query, model_name=best_model, user_code=user_code)
+                title = f"🏆 BEST MODEL: {best_model}"
+                console.print(Panel(suggestion, title=title, border_style="green"))
+            
+            elif response_mode == "all":
+                # Show all models
+                all_suggestions = system.get_refactoring_suggestions(query, user_code=user_code)
+                if isinstance(all_suggestions, dict):
+                    for model_name, suggestion in all_suggestions.items():
+                        is_best = model_name == best_model
+                        title = f"🏆 {model_name}" if is_best else f"📋 {model_name}"
+                        border_style = "green" if is_best else "blue"
+                        console.print(Panel(suggestion, title=title, border_style=border_style))
+                else:
+                    console.print(Panel(all_suggestions, title="Response"))
+            
             else:
-                is_truncated = len(suggestions) > 10000
-                display_text = suggestions[:10000] + "\n\n[... truncated ...]" if is_truncated else suggestions
-                title = "Suggestion"
-                if is_truncated:
-                    title += f" ({len(suggestions)} characters total)"
-                console.print(Panel(display_text, title=title))
+                # Comprehensive mode (default)
+                display_comprehensive_response(system, query, best_model, user_code)
 
             console.print("[bold green]Query completed.[/bold green]")
 
@@ -438,102 +832,62 @@ def interactive_mode_rich(system: RefactoringRAGSystem):
             console.print(f"[bold red]Error: {error}[/bold red]")
             console.print("[yellow]Use 'help' for available commands.[/yellow]")
 
-def get_multiline_input(prompt: str = "Enter your input") -> str:
-    """
-    Get multi-line input from user using various end conditions.
 
-    Modes:
-    - Press CTRL+D (Linux/Mac) or CTRL+Z (Windows) to submit
-    - Type '###END###' on a new line to submit
-    - Press ENTER twice to submit
-    """
-    print(f"\n{prompt}:")
-    print("Multi-line input supported:")
-    print("  - Press CTRL+D/CTRL+Z to submit")
-    print("  - Type '###END###' on a new line to submit")
-    print("  - Press ENTER twice to submit")
-    print("-" * 50)
-
-    lines = []
-    empty_line_count = 0
-    line_number = 1
-
-    try:
-        while True:
-            try:
-                line = input(f"{line_number:2d}| ")
-                if line.strip() == '###END###':
-                    break
-                if not line.strip():
-                    empty_line_count += 1
-                    if empty_line_count >= 2:
-                        print("Detected double empty line. Submitting input...")
-                        break
-                    lines.append(line)
-                else:
-                    empty_line_count = 0
-                    lines.append(line)
-                line_number += 1
-            except EOFError:
-                print("\nDetected EOF. Submitting input...")
-                break
-    except KeyboardInterrupt:
-        print("\nInput cancelled by user.")
-        return ""
-
-    return '\n'.join(lines).strip()
-
-
-def interactive_mode_advanced(system):
-    """
-    Advanced interactive mode with multi-line input, command parsing, and system integration.
-    """
-    print("\n" + "=" * 80)
-    print("ADVANCED INTERACTIVE MODE - Python Code Refactoring RAG System")
-    print("=" * 80)
+def interactive_mode_basic_enhanced(system: RefactoringRAGSystem, best_model: str = None):
+    """Enhanced basic interactive mode without Rich."""
+    print(f"\n{'='*80}")
+    print("ENHANCED INTERACTIVE MODE - Python Code Refactoring RAG System")
+    print(f"{'='*80}")
+    print(f"Optimized Best Model: {best_model or 'Not determined'}")
 
     print("\nAvailable Commands:")
     print("  • quit / exit / q     - Exit interactive mode")
     print("  • stats               - Show system statistics")
     print("  • health              - Perform system health check")
-    print("  • clear               - Clear the screen")
+    print("  • best                - Show only best model response")
+    print("  • all                 - Show all models' responses")
+    print("  • pdf-status          - Show PDF processing status") 
     print("  • help                - Display help message")
 
-    print("\nInput Options:")
-    print("  • Use CTRL+D/CTRL+Z, '###END###', or double ENTER to submit multi-line input")
-
     session_count = 0
+    response_mode = "comprehensive"
 
     while True:
         try:
             session_count += 1
-            print(f"\n{'=' * 20} Session {session_count} {'=' * 20}")
+            print(f"\n{'='*20} Session {session_count} {'='*20}")
 
-            query = get_multiline_input("Enter your refactoring query or code")
+            query = input("\nEnter your refactoring query or code: ").strip()
+            
             if not query:
                 print("No input provided. Please try again.")
                 continue
 
-            query_lower = query.lower().strip()
+            command = query.lower()
 
-            if query_lower in ['quit', 'exit', 'q']:
+            if command in ['quit', 'exit', 'q']:
                 print("Exiting. Goodbye!")
-                break
+                break  # This should properly exit the main loop
 
-            elif query_lower == 'stats':
+            elif command == 'best':
+                response_mode = "best"
+                print("Mode set to: Best model only")
+                continue
+
+            elif command == 'all':
+                response_mode = "all"
+                print("Mode set: All models")
+                continue
+
+            elif command == 'stats':
                 stats = system.get_system_stats()
                 print("\nSystem Statistics")
                 print("-" * 40)
                 for key, value in stats.items():
-                    if isinstance(value, dict):
-                        print(f"{key}:")
-                        for sub_key, sub_value in value.items():
-                            print(f"  {sub_key}: {sub_value}")
-                    else:
-                        print(f"{key}: {value}")
+                    print(f"{key}: {value}")
                 continue
 
-            elif query_lower == 'health':
+            elif command == 'health':
                 health = system.health_check()
                 print("\nSystem Health Check")
                 print("-" * 40)
@@ -542,103 +896,51 @@ def interactive_mode_advanced(system):
                     print(f"{component}: {status_text}")
                 continue
 
-            elif query_lower == 'clear':
-                os.system('cls' if os.name == 'nt' else 'clear')
-                continue
-
-            elif query_lower == 'help':
-                print("\nHelp")
-                print("-" * 40)
-                print("Commands:")
-                print("  • quit / exit / q     - Exit interactive mode")
-                print("  • stats               - Show system statistics")
-                print("  • health              - Perform system health check")
-                print("  • clear               - Clear the terminal screen")
-                print("  • help                - Display this help message")
-                print("\nInput Tips:")
-                print("  • Paste Python code or ask questions naturally")
-                print("  • Provide context for best results")
-                continue
-
-            print("\nProcessing query...")
-            print(f"Input Length: {len(query)} characters, {len(query.splitlines())} lines")
-            print("-" * 60)
-
-            has_code = any(keyword in query.lower() for keyword in 
-                          ['def ', 'class ', 'import ', 'for ', 'if ', 'while ', '```'])
-
-            if has_code:
-                print("Detected code input. Generating refactoring suggestions...")
+            # Process query based on mode
+            print(f"\nProcessing query in '{response_mode}' mode...")
+            
+            has_code = any(kw in query.lower() for kw in ['def ', 'class ', 'import ', 'for ', 'if '])
+            user_code = query if has_code else None
+            
+            if response_mode == "best" and best_model:
+                suggestion = system.get_refactoring_suggestions(query, model_name=best_model, user_code=user_code)
+                print(f"\n🏆 BEST MODEL ({best_model}):")
+                print("-" * 50)
+                print(suggestion)
+            
+            elif response_mode == "all":
+                display_comprehensive_response_basic(system, query, best_model, user_code)
+            
             else:
-                print("Detected natural language query. Generating conceptual suggestions...")
-
-            suggestions = system.get_refactoring_suggestions(query)
-
-            print("\n" + "=" * 60)
-            print("REFACTORING SUGGESTIONS")
-            print("=" * 60)
-
-            if isinstance(suggestions, dict):
-                for i, (model, suggestion) in enumerate(suggestions.items(), 1):
-                    print(f"\nModel {i}: {model}")
-                    print("-" * 40)
-
-                    if len(suggestion) > 1500:
-                        lines = suggestion.split('\n')
-                        if len(lines) > 30:
-                            print('\n'.join(lines[:30]))
-                            print(f"\n... [Output truncated to 30 of {len(lines)} lines]")
-                            print(f"Total characters: {len(suggestion)}")
-                        else:
-                            print(suggestion[:1500])
-                            print(f"\n... [Output truncated to 1500 characters]")
-                    else:
-                        print(suggestion)
-            else:
-                if len(suggestions) > 1500:
-                    print(suggestions[:1500])
-                    print(f"\n... [Output truncated to 1500 characters]")
-                else:
-                    print(suggestions)
+                display_comprehensive_response_basic(system, query, best_model, user_code)
 
             print("\nQuery completed successfully.")
 
         except KeyboardInterrupt:
             print("\nExiting interactive mode.")
             break
-
         except Exception as e:
             print(f"\nError occurred: {e}")
-            print("Please try again or type 'help' for guidance.")
-
-        try:
-            continue_choice = input("\nContinue with another query? (y/n/help): ").strip().lower()
-            if continue_choice in ['n', 'no', 'quit', 'exit']:
-                print("Session ended. Goodbye!")
-                break
-            elif continue_choice in ['help', 'h']:
-                print("\nQuick Help:")
-                print("  • Type your query or paste code")
-                print("  • Submit with double ENTER, ###END###, or CTRL+D")
-        except KeyboardInterrupt:
-            print("\nSession ended. Goodbye!")
-            break
 
 
-
-def interactive_mode(system: RefactoringRAGSystem):
-    """Select the most appropriate interactive mode based on available libraries."""
-    if RICH_AVAILABLE:
-        interactive_mode_rich(system)
+def interactive_mode(system: RefactoringRAGSystem, best_model: str = None):
+    """Select the most appropriate interactive mode with enhanced display management."""
+    if ENHANCED_DISPLAY_AVAILABLE:
+        # Use the new enhanced interactive session manager
+        session = create_interactive_session(system, best_model)
+        session.run()
+    elif RICH_AVAILABLE:
+        # Fallback to built-in Rich mode
+        interactive_mode_enhanced(system, best_model)
     else:
-        interactive_mode_advanced(system)
-
+        # Fallback to basic mode
+        interactive_mode_basic_enhanced(system, best_model)
 
 
 def main():
-    """Main entry point."""
-    print("Python Code Refactoring RAG System")
-    print("=" * 50)
+    """Enhanced main entry point."""
+    print("Python Code Refactoring RAG System - Enhanced Edition")
+    print("=" * 70)
     
     # Configuration
     DATASET_PATH = "E:\Shoban\Shoban-NCI\Practicum\Python_Refactoring\Python_refactoring\python-refactoring-rag\Inputs\python_legacy_refactoring_dataset_2.json"
@@ -674,26 +976,33 @@ def main():
         stats = system.get_system_stats()
         print(f"\nSystem ready with {stats['vector_store'].get('points_count', 0)} indexed chunks")
         
-        # Run evaluation
-        print("\n" + "="*50)
-        print("RUNNING SYSTEM EVALUATION")
-        print("="*50)
+        # Run comprehensive evaluation
+        print(f"\n{'='*70}")
+        print("RUNNING COMPREHENSIVE SYSTEM EVALUATION")
+        print(f"{'='*70}")
         
         evaluation_results = run_evaluation(system)
         
-        # Run optimization
-        optimization_results = run_model_optimization(evaluation_results)
+        # Display evaluation summary and store pre-optimization metrics
+        pre_optimization_metrics = display_evaluation_summary(evaluation_results)
         
-        # Show final results
+        # Run optimization with comparison
+        optimization_results = run_model_optimization(evaluation_results, pre_optimization_metrics)
+        
+        # Determine best model and set it in the system
+        best_model = None
         if 'error' not in optimization_results:
-            print(f"\nRecommended Model: {optimization_results['best_model']}")
-            print("System is ready for production use!")
+            best_model = optimization_results['best_model']
+            system.set_best_model(best_model, optimization_results)  # Set in system
+            print(f"\n🎯 SYSTEM READY!")
+            print(f"📊 Recommended Model: {best_model}")
+            print("✅ System is optimized for production use!")
         else:
-            print(f"\nOptimization failed: {optimization_results['error']}")
-            print("System is still functional for basic queries.")
+            print(f"\n⚠️  Optimization failed: {optimization_results['error']}")
+            print("⚡ System is still functional for basic queries.")
         
-        # Interactive mode
-        interactive_mode(system)
+        # Enhanced interactive mode with all features
+        interactive_mode(system, best_model)
         
     except KeyboardInterrupt:
         print("\nShutdown requested by user")
@@ -704,67 +1013,5 @@ def main():
         sys.exit(1)
 
 
-def demo_mode():
-    """Run a simple demo without full setup."""
-    print("Python Code Refactoring RAG System - Demo Mode")
-    print("=" * 50)
-    
-    try:
-        system = setup_system()
-        
-        # Simple demo queries
-        demo_queries = [
-            "How can I make this function more readable?",
-            "What's the best way to reduce code complexity?",
-            "How to eliminate code duplication?"
-        ]
-        
-        print("Running demo queries...")
-        
-        for query in demo_queries:
-            print(f"\nQuery: {query}")
-            try:
-                suggestions = system.get_refactoring_suggestions(query)
-                if isinstance(suggestions, dict) and suggestions:
-                    # Show first model's suggestion
-                    first_model = list(suggestions.keys())[0]
-                    suggestion = suggestions[first_model]
-                    print(f"Suggestion ({first_model}): {suggestion[:200]}...")
-                else:
-                    print(f"Suggestion: {str(suggestions)[:200]}...")
-            except Exception as e:
-                print(f"Error: {e}")
-        
-        print("\nDemo complete!")
-        
-    except Exception as e:
-        logger.error(f"Error in demo mode: {e}")
-        print(f"Demo failed: {e}")
-
-
 if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Python Code Refactoring RAG System")
-    parser.add_argument("--demo", action="store_true", help="Run in demo mode")
-    parser.add_argument("--interactive", action="store_true", help="Run only interactive mode")
-    parser.add_argument("--dataset", type=str, help="Path to dataset file")
-    parser.add_argument("--pdfs", nargs="+", help="Paths to PDF files")
-    parser.add_argument("--force-reindex", action="store_true", help="Force reindexing of data")
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
-                       default="INFO", help="Set logging level")
-    
-    args = parser.parse_args()
-    
-    # Set logging level
-    logging.getLogger().setLevel(getattr(logging, args.log_level))
-    
-    if args.demo:
-        demo_mode()
-    elif args.interactive:
-        system = setup_system()
-        if args.dataset:
-            process_data(system, args.dataset, args.pdfs, args.force_reindex)
-        interactive_mode(system)
-    else:
-        main()
+    main()
