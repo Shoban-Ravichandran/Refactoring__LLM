@@ -12,7 +12,7 @@ class LLMConfig:
     model_name: str
     provider: LLMProvider
     api_key: str
-    max_tokens: int = 2048
+    max_tokens: int = 4000
     temperature: float = 0.1
     timeout: int = 30
 
@@ -28,35 +28,35 @@ def get_groq_models() -> List[LLMConfig]:
             model_name="llama3-70b-8192",
             provider=LLMProvider.GROQ,
             api_key=api_key,
-            max_tokens=1000,
+            max_tokens=4000,
             temperature=0.1
         ),
         LLMConfig(
             model_name="gemma2-9b-it",
             provider=LLMProvider.GROQ,
             api_key=api_key,
-            max_tokens=1000,
+            max_tokens=4000,
             temperature=0.1
         ),
         LLMConfig(
             model_name="qwen/qwen3-32b",
             provider=LLMProvider.GROQ,
             api_key=api_key,
-            max_tokens=1000,
+            max_tokens=4000,
             temperature=0.1
         ),
         LLMConfig(
             model_name="moonshotai/kimi-k2-instruct",
             provider=LLMProvider.GROQ,
             api_key=api_key,
-            max_tokens=1000,
+            max_tokens=4000,
             temperature=0.1
         ),
         LLMConfig(
             model_name="deepseek-r1-distill-llama-70b",
             provider=LLMProvider.GROQ,
             api_key=api_key,
-            max_tokens=1000,
+            max_tokens=4000,
             temperature=0.1
         )
     ]

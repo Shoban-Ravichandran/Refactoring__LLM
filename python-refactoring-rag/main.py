@@ -1262,15 +1262,14 @@ def display_evaluation_summary(evaluation_results: Dict[str, Any]):
 
 def run_model_optimization(evaluation_results: Dict[str, Any], 
                           pre_optimization_metrics: Dict[str, Any]) -> Dict[str, Any]:
-    """Run NSGA-II optimization and show before/after comparison."""
-    logger.info("Running NSGA-II multi-objective optimization...")
+    """Run NSGA-II optimization and show meaningful before/after comparison."""
+    logger.info("Running improved NSGA-II multi-objective optimization...")
     
     try:
-        
         optimization_results = run_fixed_nsga2_optimization(evaluation_results)
         
         print(f"\n{'='*80}")
-        print("NSGA-II OPTIMIZATION RESULTS & COMPARISON")
+        print("IMPROVED NSGA-II OPTIMIZATION RESULTS & COMPARISON")
         print(f"{'='*80}")
         
         best_model = optimization_results['best_model']
@@ -1279,70 +1278,173 @@ def run_model_optimization(evaluation_results: Dict[str, Any],
         print(f"⏱️  Optimization Time: {optimization_results['optimization_time_seconds']:.2f}s")
         print(f"🔧 Algorithm: {optimization_results['algorithm']}")
         
-        # Show before/after metrics comparison
+        # Show meaningful before/after metrics comparison
         print(f"\n{'='*50}")
         print("METRICS COMPARISON: BEFORE vs AFTER OPTIMIZATION")
         print(f"{'='*50}")
         
-        best_metrics = optimization_results.get('best_model_objectives', {})
-        pre_metrics = pre_optimization_metrics.get(best_model, {})
+        baseline_metrics = optimization_results.get('baseline_metrics', {})
+        optimized_metrics = optimization_results.get('best_model_objectives', {})
+        improvement_metrics = optimization_results.get('improvement_metrics', {})
         
-        if best_metrics and pre_metrics:
-            print(f"{'Metric':<20} {'Before':<10} {'After':<10} {'Change':<10}")
-            print("-" * 50)
+        if baseline_metrics and optimized_metrics:
+            print(f"{'Metric':<25} {'Before':<10} {'After':<10} {'Change':<12} {'% Change':<10}")
+            print("-" * 67)
             
-            for metric in ['context_relevance', 'answer_relevance', 'faithfulness', 
-                          'response_completeness', 'bleu_score', 'rouge_l_score']:
-                if metric in best_metrics and metric in pre_metrics:
-                    before_val = pre_metrics[metric]
-                    after_val = best_metrics[metric]
-                    change = after_val - before_val
-                    change_str = f"+{change:.4f}" if change >= 0 else f"{change:.4f}"
+            core_metrics = ['context_relevance', 'answer_relevance', 'faithfulness', 
+                          'response_completeness', 'bleu_score', 'rouge_l_score']
+            
+            for metric in core_metrics:
+                if metric in baseline_metrics and metric in optimized_metrics:
+                    before_val = baseline_metrics[metric]
+                    after_val = optimized_metrics[metric]
+                    abs_change = improvement_metrics.get(f'{metric}_absolute_improvement', after_val - before_val)
+                    rel_change = improvement_metrics.get(f'{metric}_relative_improvement', 0.0)
                     
-                    print(f"{metric.replace('_', ' ').title():<20} "
+                    change_str = f"+{abs_change:.4f}" if abs_change >= 0 else f"{abs_change:.4f}"
+                    percent_str = f"+{rel_change*100:.2f}%" if rel_change >= 0 else f"{rel_change*100:.2f}%"
+                    
+                    print(f"{metric.replace('_', ' ').title():<25} "
                           f"{before_val:<10.4f} "
                           f"{after_val:<10.4f} "
-                          f"{change_str:<10}")
+                          f"{change_str:<12} "
+                          f"{percent_str:<10}")
+            
+            # Overall improvement
+            overall_abs = improvement_metrics.get('overall_absolute_improvement', 0.0)
+            overall_rel = improvement_metrics.get('overall_relative_improvement', 0.0)
+            
+            print("-" * 67)
+            print(f"{'OVERALL IMPROVEMENT':<25} {'':10} {'':10} "
+                  f"{'+' if overall_abs >= 0 else ''}{overall_abs:.4f}{'':2} "
+                  f"{'+' if overall_rel >= 0 else ''}{overall_rel*100:.2f}%")
         
-        # Show all Pareto solutions
+        # Show optimization details
+        if 'optimized_weights' in optimization_results:
+            print(f"\n{'='*50}")
+            print("OPTIMIZATION DETAILS")
+            print(f"{'='*50}")
+            
+            # Model weights
+            model_weights = optimization_results['optimized_weights'].get('model_weights', {})
+            if model_weights:
+                print(f"\n📊 Model Ensemble Weights:")
+                for model, weight in sorted(model_weights.items(), key=lambda x: x[1], reverse=True):
+                    print(f"  {model:<30} {weight:.3f} ({'Primary' if weight > 0.5 else 'Secondary' if weight > 0.1 else 'Minor'})")
+            
+            # Retrieval parameters
+            if 'optimized_retrieval' in optimization_results:
+                retrieval = optimization_results['optimized_retrieval']
+                print(f"\n🔍 Optimized Retrieval Parameters:")
+                print(f"  Similarity Threshold: {retrieval.get('similarity_threshold', 0.3):.3f}")
+                print(f"  Top-K Multiplier: {retrieval.get('topk_multiplier', 1.0):.3f}")
+            
+            # Metric weights
+            metric_weights = {k: v for k, v in optimization_results['optimized_weights'].items() 
+                            if k not in ['model_weights']}
+            if metric_weights:
+                print(f"\n⚖️  Metric Importance Weights:")
+                for metric, weight in sorted(metric_weights.items(), key=lambda x: x[1], reverse=True):
+                    print(f"  {metric.replace('_', ' ').title():<25} {weight:.3f}")
+        
+        # Show top Pareto solutions
         print(f"\n{'='*50}")
         print("TOP 5 PARETO OPTIMAL SOLUTIONS")
         print(f"{'='*50}")
         
-        # Convert to list of solutions
-        pareto_solutions = [
-            {'model': model_name, 'objectives': scores}
-            for model_name, scores in pre_optimization_metrics.items()
-        ]
-
-        # Optional: sort by average score if desired
-        pareto_solutions.sort(key=lambda s: sum(s['objectives'].values()) / len(s['objectives']), reverse=True)
-
-        # Print top 5
-        for i, solution in enumerate(pareto_solutions[:5], 1):
-            model = solution.get('model', 'Unknown')
-            objectives = solution.get('objectives', {})
-            avg_score = sum(objectives.values()) / len(objectives) if objectives else 0
-            print(f"{i}. {model:<30} (Avg Score: {avg_score:.4f})")
+        all_solutions = optimization_results.get('all_pareto_solutions', [])
+        if all_solutions:
+            # Sort by a composite score for display
+            def solution_score(sol):
+                if 'objectives' in sol:
+                    # Convert objectives back to performance metrics (they were negated for minimization)
+                    objs = sol['objectives']
+                    return -(objs[0] + objs[1])  # Negative because objectives were negated
+                return 0
+            
+            sorted_solutions = sorted(all_solutions, key=solution_score, reverse=True)
+            
+            for i, solution in enumerate(sorted_solutions[:5], 1):
+                model = solution.get('model', 'Unknown')
+                is_best = solution.get('is_best', False)
+                marker = "🏆" if is_best else f"{i}."
+                
+                if 'model_weights' in solution:
+                    primary_weight = max(solution['model_weights'])
+                    print(f"{marker} {model:<30} (Primary Weight: {primary_weight:.3f})")
+                else:
+                    print(f"{marker} {model}")
         
         return optimization_results
         
     except Exception as e:
-        logger.error(f"Error in NSGA-II optimization: {e}")
+        logger.error(f"Error in improved NSGA-II optimization: {e}")
         return {'error': str(e)}
 
 
-# Optional: Install rich library for enhanced UI
-try:
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.syntax import Syntax
-    from rich.prompt import Prompt
-    from rich.text import Text
-    from rich.columns import Columns
-    RICH_AVAILABLE = True
-except ImportError:
-    RICH_AVAILABLE = False
+def display_optimization_summary_enhanced(optimization_results: Dict[str, Any]):
+    """Display enhanced optimization summary with actionable insights."""
+    print(f"\n{'='*80}")
+    print("OPTIMIZATION SUMMARY & RECOMMENDATIONS")
+    print(f"{'='*80}")
+    
+    improvement_metrics = optimization_results.get('improvement_metrics', {})
+    overall_improvement = improvement_metrics.get('overall_relative_improvement', 0.0)
+    
+    if overall_improvement > 0.05:  # 5% improvement
+        print(f"✅ SIGNIFICANT IMPROVEMENT ACHIEVED!")
+        print(f"   Overall performance improved by {overall_improvement*100:.2f}%")
+    elif overall_improvement > 0.01:  # 1% improvement
+        print(f"✅ Moderate improvement achieved")
+        print(f"   Overall performance improved by {overall_improvement*100:.2f}%")
+    elif overall_improvement > 0:
+        print(f"⚠️  Small improvement detected")
+        print(f"   Overall performance improved by {overall_improvement*100:.2f}%")
+    else:
+        print(f"❓ No significant improvement found")
+        print(f"   This may indicate models have similar performance")
+    
+    # Provide actionable recommendations
+    print(f"\n📋 RECOMMENDATIONS:")
+    
+    best_model = optimization_results.get('best_model')
+    if best_model:
+        print(f"1. Use '{best_model}' as your primary model")
+    
+    model_weights = optimization_results.get('optimized_weights', {}).get('model_weights', {})
+    if model_weights:
+        ensemble_complexity = sum(1 for w in model_weights.values() if w > 0.1)
+        if ensemble_complexity > 1:
+            print(f"2. Consider ensemble approach with {ensemble_complexity} models")
+            print(f"   Primary contributors: {[m for m, w in model_weights.items() if w > 0.1]}")
+        else:
+            print(f"2. Single model approach is optimal")
+    
+    if 'optimized_retrieval' in optimization_results:
+        retrieval = optimization_results['optimized_retrieval']
+        threshold = retrieval.get('similarity_threshold', 0.3)
+        topk = retrieval.get('topk_multiplier', 1.0)
+        print(f"3. Optimize retrieval settings:")
+        print(f"   - Similarity threshold: {threshold:.3f}")
+        print(f"   - Top-K multiplier: {topk:.2f}")
+    
+    # Performance insights
+    best_metrics = ['context_relevance', 'answer_relevance', 'faithfulness', 'response_completeness']
+    best_improvements = []
+    
+    for metric in best_metrics:
+        rel_improvement = improvement_metrics.get(f'{metric}_relative_improvement', 0.0)
+        if rel_improvement > 0.02:  # 2% improvement
+            best_improvements.append((metric, rel_improvement))
+    
+    if best_improvements:
+        best_improvements.sort(key=lambda x: x[1], reverse=True)
+        print(f"4. Strongest improvements in:")
+        for metric, improvement in best_improvements[:3]:
+            print(f"   - {metric.replace('_', ' ').title()}: +{improvement*100:.2f}%")
+    
+    print(f"\n🎯 System is now optimized and ready for production use!")
+
 
 
 def display_comprehensive_response(system: RefactoringRAGSystem, query: str, 
@@ -1759,13 +1861,14 @@ def main():
         # Run optimization with comparison
         optimization_results = run_model_optimization(evaluation_results, pre_optimization_metrics)
         
-        # Determine best model and set it in the system
-        best_model = None
+        # Display enhanced summary
         if 'error' not in optimization_results:
+            display_optimization_summary_enhanced(optimization_results)
+            
             best_model = optimization_results['best_model']
-            system.set_best_model(best_model, optimization_results)  # Set in system
+            system.set_best_model(best_model, optimization_results)
             print(f"\n🎯 SYSTEM READY!")
-            print(f"📊 Recommended Model: {best_model}")
+            print(f"📊 Optimized Model: {best_model}")
             print("✅ System is optimized for production use!")
         else:
             print(f"\n⚠️  Optimization failed: {optimization_results['error']}")
