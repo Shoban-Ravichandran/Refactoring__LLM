@@ -15,7 +15,7 @@ except ImportError:
 
 
 class CodeEmbedder:
-    """Enhanced embedder with better context creation for code."""
+    """Code embedder with context creation for code."""
     
     def __init__(self, model_name: str = "jinaai/jina-embeddings-v2-base-code"):
         if not SENTENCE_TRANSFORMERS_AVAILABLE:
@@ -394,5 +394,5 @@ class CachedCodeEmbedder(CodeEmbedder):
         return {
             'cache_size': self.cache.size(),
             'max_cache_size': self.cache.max_size,
-            'cache_hit_rate': 'Not tracked'  # Could implement hit rate tracking if needed
+            'cache_hit_rate': 'Not tracked'  
         }

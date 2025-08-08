@@ -1,4 +1,4 @@
-"""NSGA-II multi-objective optimization for model selection with proper before/after comparison."""
+"""NSGA-II multi-objective optimization for model selection with before/after comparison."""
 
 import logging
 import time

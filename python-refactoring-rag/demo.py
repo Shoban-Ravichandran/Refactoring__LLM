@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Interactive Demo Mode for Python Code Refactoring RAG System
 

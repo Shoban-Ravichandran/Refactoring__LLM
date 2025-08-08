@@ -1,10 +1,10 @@
-# Python Code Refactoring RAG System
+# A Transformer Based Framework for Automatically refactoring Legacy Code
 
-A comprehensive Retrieval-Augmented Generation (RAG) system for Python code refactoring suggestions, featuring multi-objective optimization for model selection and enhanced evaluation metrics.
+A comprehensive Retrieval-Augmented Generation (RAG) system for Python legacy code refactoring suggestions, featuring multi-objective optimization for model selection and enhanced evaluation metrics.
 
-## 🚀 Features
+## Features
 
-- **Multi-LLM Support**: Integration with multiple language models (Groq, OpenAI, Anthropic)
+- **Multi-LLM Support**: Integration with multiple language models (Groq)
 - **Advanced Retrieval**: Code-specific embeddings with enhanced query processing
 - **Multi-Objective Optimization**: NSGA-II algorithm for optimal model selection
 - **Comprehensive Evaluation**: RAG metrics including BLEU, ROUGE, context relevance, and faithfulness
@@ -14,14 +14,13 @@ A comprehensive Retrieval-Augmented Generation (RAG) system for Python code refa
 - **Interactive Demo**: Easy-to-use demo mode for demonstrations
 - **Legacy Code Generation**: Automatic generation of 2200+ refactoring examples
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 python-refactoring-rag/
 ├── README.md
 ├── requirements.txt
 ├── main.py                          # Main application entry point
-├── cli.py                           # Command-line interface
 ├── demo.py                          # Interactive demo mode
 ├── key.env                          # Environment variables (create from .env.example)
 ├── .env.example                     # Environment variables template
@@ -76,10 +75,9 @@ python-refactoring-rag/
 │
 └── tests/                           # Unit tests
     ├── __init__.py
-    └── test_*.py
 ```
 
-## 🛠️ Installation
+## Installation
 
 ### Prerequisites
 - Python 3.8 or higher
@@ -135,9 +133,9 @@ inputs/expert_knowledge/
 └── effective-python.pdf
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
-### Option 1: Interactive Demo (🎯 Recommended for First-Time Users)
+### Option 1: Interactive Demo
 
 Perfect for demonstrations and testing:
 
@@ -157,7 +155,7 @@ python demo.py
 2. **Interactive mode** - Ask your own questions and paste code
 3. **System statistics** - View system status and capabilities
 
-### Option 2: Full System (🔧 Complete Experience)
+### Option 2: Full System (Complete Experience)
 
 For the complete system with evaluation and optimization:
 
@@ -177,28 +175,8 @@ python main.py
 3. **System statistics** - Detailed system information
 4. **Health check** - Verify all components are working
 
-### Option 3: Command Line Interface (⚡ Automation)
 
-For specific operations and automation:
-
-```bash
-# Check system status
-python cli.py status
-
-# Generate dataset
-python cli.py generate-dataset
-
-# Process PDF files
-python cli.py process-pdfs [--force]
-
-# Run evaluation
-python cli.py evaluate
-
-# Interactive mode
-python cli.py interactive
-```
-
-## 📖 Usage Examples
+## Usage Examples
 
 ### Basic Refactoring Suggestion
 
@@ -284,7 +262,7 @@ for result in results:
         print(f"Faithfulness: {metrics.faithfulness:.3f}")
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### LLM Model Configuration
 
@@ -356,7 +334,7 @@ QDRANT_URL=https://your-cluster.qdrant.io
 QDRANT_API_KEY=your_qdrant_key
 ```
 
-## 🧠 Advanced Features
+## Advanced Features
 
 ### Multi-Objective Optimization with NSGA-II
 
@@ -489,7 +467,7 @@ def _generate_design_pattern_example(self) -> Tuple[str, str, str]:
     return original, refactored, description
 ```
 
-## 📊 Dataset Generation
+## ataset Generation
 
 The system includes a comprehensive legacy code generator that creates realistic refactoring examples:
 
@@ -541,20 +519,7 @@ Each generated example includes:
 }
 ```
 
-## 🧪 Development
-
-### Running Tests
-
-```bash
-# Install test dependencies
-pip install pytest pytest-cov
-
-# Run all tests
-python -m pytest tests/
-
-# Run with coverage
-python -m pytest tests/ --cov=. --cov-report=html
-```
+## Development
 
 ### Code Quality
 
@@ -623,29 +588,7 @@ class RAGEvaluationMetrics:
     custom_metric: float = 0.0
 ```
 
-### Project Extension Ideas
-
-1. **Multi-language Support**
-   - Add support for JavaScript, Java, C++
-   - Language-specific refactoring patterns
-   - Cross-language pattern mapping
-
-2. **IDE Integration**
-   - VS Code extension
-   - PyCharm plugin
-   - Real-time refactoring suggestions
-
-3. **Web Interface**
-   - React-based frontend
-   - Real-time code analysis
-   - Collaborative refactoring sessions
-
-4. **Advanced Analytics**
-   - Code quality trend analysis
-   - Team refactoring metrics
-   - Pattern usage statistics
-
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -773,25 +716,7 @@ logging.basicConfig(level=logging.DEBUG)
 LOG_LEVEL=DEBUG python main.py
 ```
 
-### Health Check
-
-Use the built-in health check to diagnose issues:
-
-```bash
-# CLI health check
-python cli.py status
-
-# Programmatic health check
-python -c "
-from main import setup_system
-system = setup_system()
-health = system.health_check()
-for component, status in health.items():
-    print(f'{component}: {'✓' if status else '✗'}')
-"
-```
-
-## 📚 API Reference
+## API Reference
 
 ### Core Classes
 
@@ -928,7 +853,7 @@ class OptimizationConfig:
     mutation_prob: float = 0.2
 ```
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Here's how to get started:
 
@@ -1006,7 +931,7 @@ git push origin feature/your-feature-name
 - Use descriptive variable and function names
 - Add type hints to function signatures
 - Include comprehensive docstrings
-- Remove emojis and unprofessional comments
+
 
 #### Testing
 - Write unit tests for new functionality
@@ -1020,55 +945,7 @@ git push origin feature/your-feature-name
 - Include usage examples for new features
 - Update API reference if needed
 
-### Areas for Contribution
-
-#### High Priority
-- [ ] Support for additional programming languages (JavaScript, Java, C++)
-- [ ] Web-based user interface
-- [ ] Real-time code analysis
-- [ ] Integration with popular IDEs (VS Code, PyCharm)
-- [ ] Advanced visualization of refactoring suggestions
-
-#### Medium Priority
-- [ ] Additional LLM provider support
-- [ ] Enhanced evaluation metrics
-- [ ] Performance optimizations
-- [ ] Better error handling and user feedback
-- [ ] Automated refactoring application
-- [ ] Integration with static analysis tools
-
-#### Low Priority
-- [ ] Support for team-based refactoring workflows
-- [ ] Historical analysis of code changes
-- [ ] Custom refactoring pattern definitions
-- [ ] Export functionality for refactoring reports
-- [ ] Advanced caching mechanisms
-
-### Bug Reports
-
-When reporting bugs, please include:
-
-1. **System information**:
-   - Python version
-   - Operating system
-   - Package versions (`pip freeze`)
-
-2. **Steps to reproduce**:
-   - Exact commands or code used
-   - Input data or queries
-   - Expected vs actual behavior
-
-3. **Error messages**:
-   - Full stack traces
-   - Log outputs
-   - Screenshots if applicable
-
-4. **Environment**:
-   - API keys used (redacted)
-   - Configuration files
-   - System specifications
-
-## 📄 License
+## License
 
 MIT License
 
@@ -1092,207 +969,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-## 📖 Citation
-
-If you use this system in your research or projects, please cite:
-
-```bibtex
-@software{python_refactoring_rag_2024,
-  title={Python Code Refactoring RAG System: A Comprehensive Retrieval-Augmented Generation System for Code Refactoring},
-  author={Contributors},
-  year={2024},
-  url={https://github.com/your-username/python-refactoring-rag},
-  version={1.0.0},
-  description={Multi-LLM RAG system with NSGA-II optimization for Python code refactoring suggestions}
-}
-```
-
-## 📞 Support
-
-### Documentation
-- **This README**: Comprehensive setup and usage guide
-- **Inline Documentation**: Detailed docstrings in all modules
-- **Code Examples**: Usage examples throughout the codebase
-
-### Getting Help
-
-1. **Check the Documentation**: Review this README and inline documentation
-2. **Search Issues**: Look through existing GitHub issues
-3. **Run Health Check**: Use `python cli.py status` to diagnose problems
-4. **Enable Debug Logging**: Set `LOG_LEVEL=DEBUG` for detailed logs
-
-### Reporting Issues
-
-- **GitHub Issues**: For bugs, feature requests, and questions
-- **GitHub Discussions**: For general questions and community discussions
-- **Email**: For security issues or private concerns
-
-### Community
-
-- **GitHub Discussions**: Share ideas, ask questions, showcase projects
-- **Pull Requests**: Contribute code improvements and new features
-- **Issue Tracking**: Help triage and fix bugs
-
-## 🗺️ Roadmap
-
-### Version 1.1 (Next Release)
-- [ ] Web-based user interface
-- [ ] Enhanced PDF processing with OCR support
-- [ ] Additional evaluation metrics
-- [ ] Performance optimizations
-- [ ] Better error messages and user guidance
-
-### Version 1.2 (Future)
-- [ ] Multi-language support (JavaScript, Java, C++)
-- [ ] IDE integrations (VS Code extension)
-- [ ] Real-time code analysis
-- [ ] Team collaboration features
-- [ ] Advanced analytics dashboard
-
-### Version 2.0 (Long-term)
-- [ ] Machine learning model training
-- [ ] Custom pattern learning from user feedback
-- [ ] Enterprise features and deployment
-- [ ] API service for external integration
-- [ ] Advanced visualization and reporting
-
-## 🎯 Use Cases
-
-### For Developers
-- **Code Review**: Get suggestions during code review process
-- **Legacy Code Modernization**: Systematically improve old codebases
-- **Learning**: Understand refactoring patterns and best practices
-- **Quality Improvement**: Identify and fix code smells
-
-### For Teams
-- **Standards Enforcement**: Ensure consistent coding practices
-- **Knowledge Sharing**: Learn from refactoring examples
-- **Technical Debt Reduction**: Systematically improve code quality
-- **Onboarding**: Help new team members learn good practices
-
-### For Educators
-- **Teaching Tool**: Demonstrate refactoring concepts
-- **Assignment Generation**: Create realistic refactoring exercises
-- **Assessment**: Evaluate student understanding of code quality
-- **Research**: Study refactoring patterns and effectiveness
-
-### For Researchers
-- **Code Quality Analysis**: Study large-scale refactoring patterns
-- **LLM Evaluation**: Compare different language models on code tasks
-- **RAG System Research**: Experiment with retrieval-augmented generation
-- **Software Engineering Studies**: Analyze refactoring effectiveness
-
-## 🔗 Related Projects
-
-### Similar Systems
-- **CodeT5**: Code-aware pre-trained encoder-decoder model
-- **CodeBERT**: Pre-trained model for programming languages
-- **InCoder**: Generative model for code infilling and synthesis
-
-### Complementary Tools
-- **SonarQube**: Static code analysis and quality gates
-- **CodeClimate**: Automated code review and quality metrics
-- **Pylint**: Python static code analysis
-- **Black**: Python code formatter
-- **Refactoring.Guru**: Refactoring patterns and techniques
-
-### Research Papers
-- "Retrieval-Augmented Generation for Code Synthesis"
-- "Multi-Objective Optimization for Software Refactoring"
-- "Evaluation Metrics for Code Generation Systems"
-- "Large Language Models for Code: A Survey"
-
-## 📈 Performance Benchmarks
-
-### System Performance
-| Component | Metric | Performance |
-|-----------|--------|-------------|
-| Dataset Generation | Examples/second | ~50 examples/sec |
-| PDF Processing | Pages/minute | ~100 pages/min |
-| Embedding Generation | Chunks/second | ~200 chunks/sec |
-| Vector Search | Queries/second | ~1000 queries/sec |
-| LLM Generation | Tokens/second | Varies by provider |
-
-### Evaluation Results
-| Model | Context Relevance | Answer Relevance | Faithfulness | BLEU Score |
-|-------|------------------|------------------|--------------|------------|
-| GPT-4 | 0.87 | 0.92 | 0.89 | 0.34 |
-| Claude-3-Opus | 0.85 | 0.90 | 0.87 | 0.32 |
-| Llama3-70B | 0.82 | 0.88 | 0.84 | 0.29 |
-| Gemma2-9B | 0.78 | 0.83 | 0.80 | 0.26 |
-
-*Results may vary based on query complexity and domain*
-
-### Resource Requirements
-| Configuration | RAM | CPU | Storage | API Costs |
-|---------------|-----|-----|---------|-----------|
-| Minimal Setup | 4GB | 2 cores | 2GB | $10-20/month |
-| Standard Setup | 8GB | 4 cores | 5GB | $50-100/month |
-| Full Setup | 16GB | 8 cores | 10GB | $100-200/month |
-
-## 🔐 Security Considerations
-
-### API Key Management
-- Store API keys in `key.env` file (not in code)
-- Use environment variables in production
-- Rotate API keys regularly
-- Monitor API usage for anomalies
-
-### Data Privacy
-- PDF documents are processed locally by default
-- Code examples are sent to LLM providers for analysis
-- No persistent storage of user queries or code
-- Use local vector database for sensitive data
-
-### Network Security
-- All API communications use HTTPS
-- Vector database connections support encryption
-- Consider using VPN for cloud deployments
-- Implement rate limiting for production use
-
-## ❓ Frequently Asked Questions
-
-### General Questions
-
-**Q: What makes this system different from other code analysis tools?**
-A: This system combines retrieval-augmented generation with multi-objective optimization to provide context-aware refactoring suggestions. It learns from both generated examples and expert knowledge from books.
-
-**Q: Can I use this system offline?**
-A: Partially. The vector database and dataset processing work offline, but LLM suggestions require internet connectivity to API providers.
-
-**Q: How accurate are the refactoring suggestions?**
-A: Accuracy varies by model and query complexity. Our evaluation shows 80-90% relevance for most queries, with GPT-4 and Claude-3 performing best.
-
-### Technical Questions
-
-**Q: Which LLM provider should I use?**
-A: Groq offers the best balance of speed and cost. OpenAI GPT-4 provides highest quality. Anthropic Claude offers good reasoning. The system can use multiple providers and optimize automatically.
-
-**Q: How much does it cost to run?**
-A: Costs depend on usage. Expect $10-20/month for light use, $50-100/month for regular use, $100-200/month for heavy use.
-
-**Q: Can I add my own refactoring patterns?**
-A: Yes! You can extend the `legacy_code_generator.py` to include custom patterns and modify the evaluation criteria.
-
-**Q: Does it support languages other than Python?**
-A: Currently only Python is supported, but the architecture is designed to be extensible to other languages.
-
-### Setup Questions
-
-**Q: I'm getting "No API keys found" error. What should I do?**
-A: Copy `.env.example` to `key.env` and add your API keys. Ensure at least one LLM provider key is set.
-
-**Q: The system says "No data loaded". How do I fix this?**
-A: Run `python -m data.generators.legacy_code_generator` to generate the dataset, and optionally add PDF files to `inputs/expert_knowledge/`.
-
-**Q: Can I use a different vector database?**
-A: The system is built for Qdrant, but the architecture allows for other vector databases with some code modifications.
-
-## 🎉 Acknowledgments
-
-### Contributors
-- Thanks to all contributors who helped build and improve this system
-- Special recognition for code reviews, bug reports, and feature suggestions
+## Acknowledgments
 
 ### Open Source Libraries
 - **Qdrant**: Vector similarity search engine
@@ -1303,12 +980,6 @@ A: The system is built for Qdrant, but the architecture allows for other vector 
 - **ROUGE**: Evaluation metrics
 - **pymoo**: Multi-objective optimization
 
-### Inspiration
-- **Refactoring.Guru**: Comprehensive refactoring patterns
-- **Clean Code**: Robert C. Martin's principles
-- **The Pragmatic Programmer**: Andrew Hunt & David Thomas
-- **Code Complete**: Steve McConnell
-
 ### Research
 - Papers on retrieval-augmented generation
 - Studies on code quality metrics
@@ -1316,37 +987,4 @@ A: The system is built for Qdrant, but the architecture allows for other vector 
 - Work on large language models for code
 
 ---
-
-## 🚀 Getting Started Now
-
-Ready to start using the Python Code Refactoring RAG System? Here's the quickest path:
-
-### 30-Second Start (Demo Mode)
-```bash
-git clone <repository-url>
-cd python-refactoring-rag
-pip install -r requirements.txt
-cp .env.example key.env
-# Add your GROQ_API_KEY to key.env
-python demo.py
-```
-
-### 5-Minute Setup (Full System)
-```bash
-# After the 30-second start above:
-python -m data.generators.legacy_code_generator
-# Add PDF books to inputs/expert_knowledge/
-python main.py
-```
-
-### Production Deployment
-```bash
-# Set up cloud vector database
-# Configure all LLM providers
-# Set up monitoring and logging
-# Deploy using your preferred method
-```
-
-That's it! You now have a comprehensive understanding of the Python Code Refactoring RAG System. Whether you're looking to improve your own code, teach refactoring concepts, or research RAG systems, this tool provides a solid foundation for your needs.
-
-Happy refactoring! 🎯
+Happy refactoring!  

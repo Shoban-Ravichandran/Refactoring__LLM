@@ -285,7 +285,7 @@ class QdrantVectorStore:
                 if not points:
                     break
                 
-                # Extract point IDs (assuming they're stored in metadata)
+                # Extract point IDs 
                 point_ids = []
                 for i, point in enumerate(points):
                     # Calculate point ID based on scroll position
