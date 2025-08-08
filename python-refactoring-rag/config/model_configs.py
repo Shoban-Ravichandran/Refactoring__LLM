@@ -115,7 +115,6 @@ def get_default_llm_configs() -> List[LLMConfig]:
     try:
         return get_groq_models()
     except ValueError:
-        # Fallback to empty list if no API key available
         return []
 
 
@@ -123,12 +122,10 @@ def get_all_available_models() -> List[LLMConfig]:
     """Get all available model configurations."""
     models = []
     
-    # Try to get models from each provider
     for provider_func in [get_groq_models, get_openai_models, get_anthropic_models]:
         try:
             models.extend(provider_func())
         except ValueError:
-            # Skip providers without API keys
             continue
     
     return models

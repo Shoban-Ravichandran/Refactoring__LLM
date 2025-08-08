@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
 from enum import Enum
+from pathlib import Path
 
 
 class LLMProvider(Enum):
@@ -71,7 +72,7 @@ class OptimizationConfig:
     population_size: int = 150
     n_generations: int = 250
     crossover_prob: float = 0.9
-    mutation_prob: float = 0.2  # adaptive if supported
+    mutation_prob: float = 0.2
     crossover_eta: float = 15
     mutation_eta: float = 20
 
@@ -88,6 +89,12 @@ EMBEDDING_MODEL_DEFAULT = "jinaai/jina-embeddings-v2-base-code"
 QDRANT_COLLECTION_NAME = "code_refactoring_chunks"
 DEFAULT_DATASET_EXAMPLES = 1500
 MAX_CHUNKS_PER_EXAMPLE = 4
+
+# Paths
+BASE_DIR = Path(__file__).parent.parent
+INPUTS_DIR = BASE_DIR / "inputs"
+DATASETS_DIR = INPUTS_DIR / "datasets"
+EXPERT_KNOWLEDGE_DIR = INPUTS_DIR / "expert_knowledge"
 
 # Refactoring patterns
 REFACTORING_PATTERNS = {
@@ -157,3 +164,10 @@ def get_default_config() -> Dict[str, Any]:
         'evaluation': DEFAULT_EVALUATION_CONFIG,
         'optimization': DEFAULT_OPTIMIZATION_CONFIG
     }
+
+
+def ensure_directories():
+    """Ensure required directories exist."""
+    directories = [INPUTS_DIR, DATASETS_DIR, EXPERT_KNOWLEDGE_DIR]
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)

@@ -7,8 +7,9 @@ from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
 import itertools
 from datetime import datetime
+from pathlib import Path
 
-from config.settings import REFACTORING_PATTERNS
+from config.settings import REFACTORING_PATTERNS, DATASETS_DIR
 
 
 @dataclass
@@ -127,7 +128,6 @@ class LegacyCodeGenerator:
         """Generate a comprehensive dataset of legacy code examples."""
         dataset = []
         
-        # Ensure balanced distribution across patterns
         examples_per_pattern = num_examples // len(self.refactoring_patterns)
         
         for pattern in self.refactoring_patterns:
@@ -135,15 +135,12 @@ class LegacyCodeGenerator:
                 example = self._generate_example_for_pattern(pattern, len(dataset) + 1)
                 dataset.append(example)
         
-        # Fill remaining examples with random patterns
         while len(dataset) < num_examples:
             pattern = random.choice(self.refactoring_patterns)
             example = self._generate_example_for_pattern(pattern, len(dataset) + 1)
             dataset.append(example)
         
-        # Shuffle to randomize order
         random.shuffle(dataset)
-        
         return dataset
     
     def _generate_example_for_pattern(self, pattern: RefactoringPattern, example_id: int) -> Dict[str, Any]:
@@ -165,7 +162,6 @@ class LegacyCodeGenerator:
         generator = generators.get(pattern.name, self._generate_generic_example)
         original_code, refactored_code, description = generator()
         
-        # Calculate complexity metrics
         original_complexity = self._estimate_complexity(original_code)
         refactored_complexity = max(1, int(original_complexity * (1 - pattern.complexity_reduction)))
         
@@ -1113,23 +1109,33 @@ def generate_dataset_statistics(dataset: List[Dict[str, Any]]) -> Dict[str, Any]
     return stats
 
 
-if __name__ == "__main__":
+def main():
+    """Main function to generate the dataset."""
     # Set random seed for reproducible results
     random.seed(42)
+    
+    # Ensure output directory exists
+    DATASETS_DIR.mkdir(parents=True, exist_ok=True)
     
     # Generate dataset
     generator = LegacyCodeGenerator()
     dataset = generator.generate_dataset(2200)
     
     # Save dataset
-    save_dataset_to_json(dataset, "python_legacy_refactoring_dataset.json")
+    dataset_path = DATASETS_DIR / "python_legacy_refactoring_dataset.json"
+    save_dataset_to_json(dataset, str(dataset_path))
     
     # Generate statistics
     stats = generate_dataset_statistics(dataset)
-    save_dataset_to_json(stats, "dataset_statistics.json")
+    stats_path = DATASETS_DIR / "dataset_statistics.json"
+    save_dataset_to_json(stats, str(stats_path))
     
     print(f"Generated {len(dataset)} examples")
     print(f"Refactoring types: {list(stats['refactoring_types'].keys())}")
     print(f"Average complexity reduction: {stats['complexity_distribution']['before']['mean'] - stats['complexity_distribution']['after']['mean']:.2f}")
-    print("Dataset saved to 'python_legacy_refactoring_dataset.json'")
-    print("Statistics saved to 'dataset_statistics.json'")
+    print(f"Dataset saved to '{dataset_path}'")
+    print(f"Statistics saved to '{stats_path}'")
+
+
+if __name__ == "__main__":
+    main()
