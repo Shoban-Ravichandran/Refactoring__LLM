@@ -53,17 +53,33 @@ class RAGConfig:
     ])
 
 
+
 @dataclass
 class EvaluationConfig:
     """Configuration for evaluation metrics."""
-    include_bleu: bool = True
-    include_rouge: bool = True
-    context_relevance_weight: float = 0.25
+    # Remove BLEU and ROUGE flags
+    include_codebleu: bool = True
+    include_efficiency_metrics: bool = True
+    
+    # Core quality metric weights (should sum to ~0.8)
     answer_relevance_weight: float = 0.20
     faithfulness_weight: float = 0.20
-    completeness_weight: float = 0.15
-    bleu_weight: float = 0.10
-    rouge_weight: float = 0.10
+    completeness_weight: float = 0.20
+    
+    # Code quality metric weight
+    codebleu_weight: float = 0.20
+    
+    # Efficiency metric weights (should sum to ~0.2)
+    latency_weight: float = 0.10  # Lower latency is better
+    token_usage_weight: float = 0.10  # Lower token usage is better
+    
+    # Efficiency thresholds for scoring
+    max_acceptable_latency_ms: float = 5000.0  # 5 seconds
+    max_acceptable_tokens: int = 2000  # 2000 tokens
+    
+    # Evaluation behavior settings
+    normalize_efficiency_metrics: bool = True  # Normalize latency and tokens to 0-1 scale
+    penalize_slow_responses: bool = True  # Apply penalty for responses over threshold
 
 
 @dataclass
@@ -72,7 +88,7 @@ class OptimizationConfig:
     population_size: int = 150
     n_generations: int = 250
     crossover_prob: float = 0.9
-    mutation_prob: float = 0.2
+    mutation_prob: float = 0.2  # adaptive if supported
     crossover_eta: float = 15
     mutation_eta: float = 20
 
@@ -89,12 +105,6 @@ EMBEDDING_MODEL_DEFAULT = "jinaai/jina-embeddings-v2-base-code"
 QDRANT_COLLECTION_NAME = "code_refactoring_chunks"
 DEFAULT_DATASET_EXAMPLES = 1500
 MAX_CHUNKS_PER_EXAMPLE = 4
-
-# Paths
-BASE_DIR = Path(__file__).parent.parent
-INPUTS_DIR = BASE_DIR / "inputs"
-DATASETS_DIR = INPUTS_DIR / "datasets"
-EXPERT_KNOWLEDGE_DIR = INPUTS_DIR / "expert_knowledge"
 
 # Refactoring patterns
 REFACTORING_PATTERNS = {
@@ -164,10 +174,3 @@ def get_default_config() -> Dict[str, Any]:
         'evaluation': DEFAULT_EVALUATION_CONFIG,
         'optimization': DEFAULT_OPTIMIZATION_CONFIG
     }
-
-
-def ensure_directories():
-    """Ensure required directories exist."""
-    directories = [INPUTS_DIR, DATASETS_DIR, EXPERT_KNOWLEDGE_DIR]
-    for directory in directories:
-        directory.mkdir(parents=True, exist_ok=True)

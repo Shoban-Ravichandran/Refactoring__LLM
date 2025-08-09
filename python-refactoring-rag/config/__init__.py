@@ -8,11 +8,7 @@ from .settings import (
     RAGConfig,
     EvaluationConfig,
     OptimizationConfig,
-    get_default_config,
-    ensure_directories,
-    INPUTS_DIR,
-    DATASETS_DIR,
-    EXPERT_KNOWLEDGE_DIR
+    get_default_config
 )
 
 from .model_configs import (
@@ -32,9 +28,5 @@ __all__ = [
     'LLMConfig',
     'get_default_config',
     'get_default_llm_configs',
-    'get_all_available_models',
-    'ensure_directories',
-    'INPUTS_DIR',
-    'DATASETS_DIR',
-    'EXPERT_KNOWLEDGE_DIR'
+    'get_all_available_models'
 ]

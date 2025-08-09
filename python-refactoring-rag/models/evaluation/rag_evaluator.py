@@ -1,9 +1,10 @@
-"""RAG system evaluation with comprehensive metrics."""
+"""RAG system evaluation with comprehensive metrics including CodeBLEU."""
 
 import logging
 import re
 import time
-from typing import List, Dict, Any, Optional
+import ast
+from typing import List, Dict, Any, Optional, Set, Tuple
 from dataclasses import dataclass
 import numpy as np
 
@@ -13,28 +14,270 @@ logger = logging.getLogger(__name__)
 
 # Check for optional dependencies
 try:
-    from rouge_score import rouge_scorer
     import nltk
     from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
-    ROUGE_AVAILABLE = True
-    BLEU_AVAILABLE = True
+    NLTK_AVAILABLE = True
 except ImportError:
-    logger.warning("BLEU/ROUGE libraries not found. Install 'rouge-score' and 'nltk' for these metrics.")
-    ROUGE_AVAILABLE = False
-    BLEU_AVAILABLE = False
+    logger.warning("NLTK library not found. Install 'nltk' for CodeBLEU metrics.")
+    NLTK_AVAILABLE = False
 
 
 @dataclass
 class RAGEvaluationMetrics:
     """Metrics for evaluating RAG system performance."""
-    context_relevance: float
     answer_relevance: float
     faithfulness: float
     response_completeness: float
     retrieval_quality: float
     latency_ms: float
-    bleu_score: float = 0.0
-    rouge_l_score: float = 0.0
+    codebleu_score: float = 0.0
+    token_usage: Dict[str, int] = None  # {'input_tokens': X, 'output_tokens': Y, 'total_tokens': Z}
+
+    def __post_init__(self):
+        if self.token_usage is None:
+            self.token_usage = {'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0}
+
+
+class CodeBLEUEvaluator:
+    """CodeBLEU evaluator with AST-aware scoring for code snippets."""
+    
+    def __init__(self):
+        self.smoothing_function = SmoothingFunction().method1 if NLTK_AVAILABLE else None
+    
+    def extract_code_blocks(self, text: str) -> List[str]:
+        """Extract code blocks from text."""
+        # Extract code blocks with triple backticks
+        code_blocks = re.findall(r'```(?:python)?\s*\n(.*?)\n```', text, re.DOTALL)
+        
+        # Extract inline code with single backticks
+        inline_code = re.findall(r'`([^`\n]+)`', text)
+        
+        # Combine all code snippets
+        all_code = code_blocks + [code for code in inline_code if any(keyword in code for keyword in ['def ', 'class ', 'import ', 'for ', 'if ', 'while '])]
+        
+        return [code.strip() for code in all_code if code.strip()]
+    
+    def parse_ast_safely(self, code: str) -> Optional[ast.AST]:
+        """Safely parse code into AST."""
+        try:
+            # Clean up common formatting issues
+            code = code.strip()
+            if not code:
+                return None
+            
+            # Handle incomplete code snippets
+            if not any(code.startswith(keyword) for keyword in ['def ', 'class ', 'import ', 'from ']):
+                # Wrap in a function if it's just statements
+                code = f"def temp_function():\n    {code.replace(chr(10), chr(10) + '    ')}"
+            
+            return ast.parse(code)
+        except SyntaxError:
+            # Try to fix common issues
+            try:
+                # Add missing indentation
+                lines = code.split('\n')
+                if lines and not lines[0].startswith((' ', '\t')):
+                    indented_code = '\n'.join('    ' + line if line.strip() else line for line in lines)
+                    code = f"def temp_function():\n{indented_code}"
+                    return ast.parse(code)
+            except:
+                pass
+            return None
+        except Exception:
+            return None
+    
+    def extract_ast_features(self, tree: ast.AST) -> Dict[str, Set[str]]:
+        """Extract AST features for comparison."""
+        features = {
+            'node_types': set(),
+            'function_names': set(),
+            'variable_names': set(),
+            'attribute_names': set(),
+            'literals': set()
+        }
+        
+        for node in ast.walk(tree):
+            # Node types
+            features['node_types'].add(type(node).__name__)
+            
+            # Function and method names
+            if isinstance(node, ast.FunctionDef):
+                features['function_names'].add(node.name)
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                features['function_names'].add(node.func.id)
+            
+            # Variable names
+            if isinstance(node, ast.Name):
+                features['variable_names'].add(node.id)
+            
+            # Attribute names
+            if isinstance(node, ast.Attribute):
+                features['attribute_names'].add(node.attr)
+            
+            # Literals
+            if isinstance(node, ast.Constant):
+                if isinstance(node.value, (str, int, float)):
+                    features['literals'].add(str(node.value))
+        
+        return features
+    
+    def calculate_ast_similarity(self, ref_features: Dict[str, Set[str]], 
+                                cand_features: Dict[str, Set[str]]) -> float:
+        """Calculate AST-based similarity between reference and candidate features."""
+        similarities = []
+        
+        for feature_type in ref_features:
+            ref_set = ref_features[feature_type]
+            cand_set = cand_features[feature_type]
+            
+            if not ref_set and not cand_set:
+                similarity = 1.0
+            elif not ref_set or not cand_set:
+                similarity = 0.0
+            else:
+                intersection = len(ref_set.intersection(cand_set))
+                union = len(ref_set.union(cand_set))
+                similarity = intersection / union if union > 0 else 0.0
+            
+            # Weight different features
+            weights = {
+                'node_types': 0.3,
+                'function_names': 0.25,
+                'variable_names': 0.2,
+                'attribute_names': 0.15,
+                'literals': 0.1
+            }
+            
+            similarities.append(similarity * weights.get(feature_type, 0.2))
+        
+        return sum(similarities)
+    
+    def calculate_token_bleu(self, reference: str, candidate: str) -> float:
+        """Calculate token-level BLEU score."""
+        if not NLTK_AVAILABLE:
+            return 0.0
+        
+        try:
+            # Tokenize by preserving code structure
+            ref_tokens = self.tokenize_code_aware(reference)
+            cand_tokens = self.tokenize_code_aware(candidate)
+            
+            if not ref_tokens or not cand_tokens:
+                return 0.0
+            
+            # Use modified weights for code context
+            weights = (0.4, 0.3, 0.2, 0.1)
+            score = sentence_bleu([ref_tokens], cand_tokens, weights=weights, 
+                                smoothing_function=self.smoothing_function)
+            return score
+        except Exception as e:
+            logger.warning(f"Error calculating token BLEU: {e}")
+            return 0.0
+    
+    def tokenize_code_aware(self, text: str) -> List[str]:
+        """Tokenize text while preserving code structure."""
+        # First, protect code blocks
+        code_blocks = self.extract_code_blocks(text)
+        
+        # Replace code blocks with placeholders
+        protected_text = text
+        for i, block in enumerate(code_blocks):
+            placeholder = f"__CODE_BLOCK_{i}__"
+            protected_text = protected_text.replace(f"```python\n{block}\n```", placeholder)
+            protected_text = protected_text.replace(f"```\n{block}\n```", placeholder)
+            protected_text = protected_text.replace(f"`{block}`", placeholder)
+        
+        # Tokenize the protected text
+        import string
+        # Remove punctuation except underscores and dots (for code)
+        translator = str.maketrans('', '', string.punctuation.replace('_', '').replace('.', ''))
+        clean_text = protected_text.translate(translator)
+        
+        tokens = clean_text.lower().split()
+        
+        # Add back code tokens
+        for i, block in enumerate(code_blocks):
+            placeholder = f"__code_block_{i}__"
+            if placeholder in tokens:
+                # Tokenize the code block separately
+                code_tokens = self.tokenize_code_block(block)
+                # Replace placeholder with code tokens
+                idx = tokens.index(placeholder)
+                tokens = tokens[:idx] + code_tokens + tokens[idx+1:]
+        
+        return tokens
+    
+    def tokenize_code_block(self, code: str) -> List[str]:
+        """Tokenize a code block preserving semantic elements."""
+        # Split on common code delimiters while preserving semantic meaning
+        import re
+        
+        # Split on whitespace and common delimiters
+        tokens = re.findall(r'\w+|[(){}[\].,;:=+\-*/<>!&|]', code)
+        
+        # Convert to lowercase for comparison, but preserve case-sensitive keywords
+        processed_tokens = []
+        for token in tokens:
+            if token.lower() in ['def', 'class', 'if', 'else', 'for', 'while', 'try', 'except', 'import', 'from', 'return']:
+                processed_tokens.append(token.lower())
+            else:
+                processed_tokens.append(token)
+        
+        return processed_tokens
+    
+    def calculate_codebleu(self, reference: str, candidate: str) -> float:
+        """Calculate CodeBLEU score combining token-level and AST-level similarities."""
+        # Extract code blocks from both texts
+        ref_code_blocks = self.extract_code_blocks(reference)
+        cand_code_blocks = self.extract_code_blocks(candidate)
+        
+        # If no code blocks in either, fall back to token BLEU
+        if not ref_code_blocks and not cand_code_blocks:
+            return self.calculate_token_bleu(reference, candidate)
+        
+        # If only one has code, penalize but still calculate token similarity
+        if not ref_code_blocks or not cand_code_blocks:
+            token_score = self.calculate_token_bleu(reference, candidate)
+            return token_score * 0.5  # Penalty for missing code
+        
+        # Calculate token-level BLEU
+        token_bleu = self.calculate_token_bleu(reference, candidate)
+        
+        # Calculate AST-level similarity
+        ast_similarities = []
+        
+        # Compare each reference code block with best matching candidate block
+        for ref_block in ref_code_blocks:
+            ref_ast = self.parse_ast_safely(ref_block)
+            if ref_ast is None:
+                continue
+            
+            ref_features = self.extract_ast_features(ref_ast)
+            
+            best_ast_sim = 0.0
+            for cand_block in cand_code_blocks:
+                cand_ast = self.parse_ast_safely(cand_block)
+                if cand_ast is None:
+                    continue
+                
+                cand_features = self.extract_ast_features(cand_ast)
+                ast_sim = self.calculate_ast_similarity(ref_features, cand_features)
+                best_ast_sim = max(best_ast_sim, ast_sim)
+            
+            ast_similarities.append(best_ast_sim)
+        
+        # Average AST similarity
+        avg_ast_similarity = np.mean(ast_similarities) if ast_similarities else 0.0
+        
+        # Combine token BLEU and AST similarity
+        # Give more weight to AST similarity for code-heavy content
+        code_ratio = len(''.join(ref_code_blocks)) / max(len(reference), 1)
+        ast_weight = min(0.6, 0.3 + code_ratio * 0.3)  # 30-60% weight for AST
+        token_weight = 1.0 - ast_weight
+        
+        codebleu_score = token_weight * token_bleu + ast_weight * avg_ast_similarity
+        
+        return min(1.0, codebleu_score)
 
 
 class ContextRelevanceEvaluator:
@@ -68,6 +311,9 @@ class ContextRelevanceEvaluator:
         self.code_indicators = [
             'function', 'method', 'class', 'def', 'python', 'code', 'loop', 'if', 'for'
         ]
+        
+        # Initialize CodeBLEU evaluator
+        self.codebleu_evaluator = CodeBLEUEvaluator()
 
     def evaluate_context_relevance(self, query: str, context_chunks: List[Dict]) -> float:
         """Enhanced context relevance calculation with debugging."""
@@ -278,87 +524,29 @@ class ContextRelevanceEvaluator:
         scores = [chunk.get('score', 0) for chunk in retrieved_chunks]
         return np.mean(scores) if scores else 0.0
 
-    def calculate_bleu(self, reference: str, candidate: str) -> float:
-        """Enhanced BLEU calculation with better preprocessing."""
-        if not BLEU_AVAILABLE:
-            return 0.0
-        try:
-            # Enhanced preprocessing
-            ref_clean = self._preprocess_for_bleu(reference)
-            cand_clean = self._preprocess_for_bleu(candidate)
-            
-            ref_tokens = ref_clean.lower().split()
-            cand_tokens = cand_clean.lower().split()
-
-            if not ref_tokens or not cand_tokens:
-                return 0.0
-
-            # Use smoothing to handle short sentences
-            smoothing = SmoothingFunction().method1
-            # Enhanced weights for code refactoring context
-            score = sentence_bleu([ref_tokens], cand_tokens, weights=(0.4, 0.3, 0.2, 0.1), smoothing_function=smoothing)
-            return score
-        except Exception as e:
-            logger.warning(f"Error calculating BLEU: {e}")
-            return 0.0
-
-    def _preprocess_for_bleu(self, text: str) -> str:
-        """Preprocess text for better BLEU calculation."""
-        # Remove code blocks for fairer comparison
-        text = re.sub(r'```.*?```', ' CODE_BLOCK ', text, flags=re.DOTALL)
-        # Normalize common refactoring terms
-        replacements = {
-            'refactoring': 'refactor',
-            'optimization': 'optimize',
-            'simplification': 'simplify'
-        }
-        for old, new in replacements.items():
-            text = text.replace(old, new)
-        return text
-
-    def calculate_rouge(self, reference: str, candidate: str) -> Dict[str, float]:
-        """Enhanced ROUGE calculation."""
-        if not ROUGE_AVAILABLE:
-            return {'rouge1': 0.0, 'rouge2': 0.0, 'rougeL': 0.0}
-        try:
-            # Preprocess both texts
-            ref_clean = self._preprocess_for_bleu(reference)
-            cand_clean = self._preprocess_for_bleu(candidate)
-            
-            scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
-            scores = scorer.score(ref_clean, cand_clean)
-            return {k: v.fmeasure for k, v in scores.items()}
-        except Exception as e:
-            logger.warning(f"Error calculating ROUGE: {e}")
-            return {'rouge1': 0.0, 'rouge2': 0.0, 'rougeL': 0.0}
-
     def comprehensive_evaluation(self, query: str, context_chunks: List[Dict],
-                               answer: str, latency_ms: float = 0,
-                               reference_answer: str = None) -> RAGEvaluationMetrics:
-        """Complete evaluation method with enhanced metrics."""
-        context_relevance = self.evaluate_context_relevance(query, context_chunks)
+                           answer: str, latency_ms: float = 0,
+                           reference_answer: str = None,
+                           token_usage: Dict[str, int] = None) -> RAGEvaluationMetrics:
+        """Complete evaluation method with enhanced metrics including CodeBLEU."""
         answer_relevance = self.evaluate_answer_relevance(query, answer)
         faithfulness = self.evaluate_faithfulness(context_chunks, answer)
         completeness = self.evaluate_response_completeness(query, answer)
         retrieval_quality = self.evaluate_retrieval_quality(context_chunks)
 
-        # Calculate BLEU and ROUGE
-        bleu_score = 0.0
-        rouge_l_score = 0.0
+        # Calculate CodeBLEU if reference answer is provided
+        codebleu_score = 0.0
         if reference_answer:
-            bleu_score = self.calculate_bleu(reference_answer, answer)
-            rouge_scores = self.calculate_rouge(reference_answer, answer)
-            rouge_l_score = rouge_scores.get('rougeL', 0.0)
+            codebleu_score = self.codebleu_evaluator.calculate_codebleu(reference_answer, answer)
 
         return RAGEvaluationMetrics(
-            context_relevance=context_relevance,
             answer_relevance=answer_relevance,
             faithfulness=faithfulness,
             response_completeness=completeness,
             retrieval_quality=retrieval_quality,
             latency_ms=latency_ms,
-            bleu_score=bleu_score,
-            rouge_l_score=rouge_l_score
+            codebleu_score=codebleu_score,
+            token_usage=token_usage or {'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0}
         )
 
 
@@ -370,14 +558,15 @@ class RAGEvaluator:
         self.context_evaluator = ContextRelevanceEvaluator()
     
     def evaluate_single_query(self, query: str, context_chunks: List[Dict],
-                             answer: str, latency_ms: float = 0,
-                             reference_answer: str = None) -> Dict[str, Any]:
+                         answer: str, latency_ms: float = 0,
+                         reference_answer: str = None,
+                         token_usage: Dict[str, int] = None) -> Dict[str, Any]:
         """Evaluate a single query-answer pair."""
         start_time = time.time()
         
         try:
             rag_metrics = self.context_evaluator.comprehensive_evaluation(
-                query, context_chunks, answer, latency_ms, reference_answer
+                query, context_chunks, answer, latency_ms, reference_answer, token_usage
             )
             
             evaluation_time = (time.time() - start_time) * 1000
@@ -430,14 +619,12 @@ class RAGEvaluator:
             return {}
         
         metrics = {
-            'context_relevance': np.mean([r['rag_metrics'].context_relevance for r in successful_results]),
             'answer_relevance': np.mean([r['rag_metrics'].answer_relevance for r in successful_results]),
             'faithfulness': np.mean([r['rag_metrics'].faithfulness for r in successful_results]),
             'response_completeness': np.mean([r['rag_metrics'].response_completeness for r in successful_results]),
             'retrieval_quality': np.mean([r['rag_metrics'].retrieval_quality for r in successful_results]),
             'avg_latency_ms': np.mean([r['rag_metrics'].latency_ms for r in successful_results]),
-            'bleu_score': np.mean([r['rag_metrics'].bleu_score for r in successful_results]),
-            'rouge_l_score': np.mean([r['rag_metrics'].rouge_l_score for r in successful_results]),
+            'codebleu_score': np.mean([r['rag_metrics'].codebleu_score for r in successful_results]),
             'success_rate': len(successful_results) / len(results)
         }
         

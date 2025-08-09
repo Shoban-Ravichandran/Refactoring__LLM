@@ -42,7 +42,7 @@ def get_groq_models() -> List[LLMConfig]:
             model_name="qwen/qwen3-32b",
             provider=LLMProvider.GROQ,
             api_key=api_key,
-            max_tokens=4000,
+            max_tokens=6000,
             temperature=0.1
         ),
         LLMConfig(
@@ -58,7 +58,15 @@ def get_groq_models() -> List[LLMConfig]:
             api_key=api_key,
             max_tokens=4000,
             temperature=0.1
+        ),
+        LLMConfig(
+            model_name="openai/gpt-oss-120b",
+            provider=LLMProvider.GROQ,
+            api_key=api_key,
+            max_tokens=4000,
+            temperature=0.1
         )
+        
     ]
 
 
@@ -115,6 +123,7 @@ def get_default_llm_configs() -> List[LLMConfig]:
     try:
         return get_groq_models()
     except ValueError:
+        # Fallback to empty list if no API key available
         return []
 
 
@@ -122,10 +131,12 @@ def get_all_available_models() -> List[LLMConfig]:
     """Get all available model configurations."""
     models = []
     
+    # Try to get models from each provider
     for provider_func in [get_groq_models, get_openai_models, get_anthropic_models]:
         try:
             models.extend(provider_func())
         except ValueError:
+            # Skip providers without API keys
             continue
     
     return models
