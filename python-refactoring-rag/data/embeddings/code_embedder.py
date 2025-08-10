@@ -394,5 +394,5 @@ class CachedCodeEmbedder(CodeEmbedder):
         return {
             'cache_size': self.cache.size(),
             'max_cache_size': self.cache.max_size,
-            'cache_hit_rate': 'Not tracked'  # Could implement hit rate tracking if needed
+            'cache_hit_rate': 'Not tracked'  
         }

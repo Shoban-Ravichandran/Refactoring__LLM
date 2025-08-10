@@ -57,7 +57,6 @@ class RAGConfig:
 @dataclass
 class EvaluationConfig:
     """Configuration for evaluation metrics."""
-    # Remove BLEU and ROUGE flags
     include_codebleu: bool = True
     include_efficiency_metrics: bool = True
     

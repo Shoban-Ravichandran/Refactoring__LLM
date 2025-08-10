@@ -553,7 +553,7 @@ class InteractiveSession:
                 self.display_manager.display_warning("Reprocessing PDFs... This may take several minutes.")
                 
                 # Get the PDF paths from the system configuration (you may need to store these)
-                # For now, we'll just show a message about how to do it
+                # For now, this is just a message about how to do it
                 if self.display_manager.use_rich:
                     self.display_manager.console.print("""
 [yellow]To reprocess PDFs, please restart the system with:[/yellow]

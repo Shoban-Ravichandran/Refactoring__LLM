@@ -1275,7 +1275,7 @@ def display_evaluation_summary(evaluation_results: Dict[str, Any]):
             }
     
     # Display results table
-    print(f"{'Model':<25} {'Answer':<7} {'Faith':<7} {'Complete':<8} {'CodeBLEU':<8} {'Latency':<8} {'Tokens':<7} {'Success':<7}")
+    print(f"{'Model':<32} {'Answer':<7} {'Faith':<7} {'Complete':<8} {'CodeBLEU':<8} {'Latency':<8} {'Tokens':<7} {'Success':<7}")
     print("-" * 105)
     
     for model_name, metrics in model_aggregates.items():
@@ -1412,7 +1412,7 @@ def run_model_optimization(evaluation_results: Dict[str, Any],
                       f"{'Improved' if avg_efficiency_improvement > 0 else 'Degraded'} by "
                       f"{abs(avg_efficiency_improvement)*100:.2f}%")
             
-        # Show optimization details (keeping existing format)
+        # Show optimization details 
         if 'optimized_weights' in optimization_results:
             print(f"\n{'='*50}")
             print("OPTIMIZATION DETAILS")
@@ -1432,7 +1432,7 @@ def run_model_optimization(evaluation_results: Dict[str, Any],
                 print(f"  Similarity Threshold: {retrieval.get('similarity_threshold', 0.3):.3f}")
                 print(f"  Top-K Multiplier: {retrieval.get('topk_multiplier', 1.0):.3f}")
             
-        # Show top Pareto solutions (keeping existing format)
+        # Show top Pareto solutions 
         print(f"\n{'='*50}")
         print("TOP 5 PARETO OPTIMAL SOLUTIONS")
         print(f"{'='*50}")
@@ -1442,9 +1442,8 @@ def run_model_optimization(evaluation_results: Dict[str, Any],
             # Sort by a composite score for display
             def solution_score(sol):
                 if 'objectives' in sol:
-                    # Convert objectives back to performance metrics (they were negated for minimization)
                     objs = sol['objectives']
-                    return -(objs[0] + objs[1])  # Negative because objectives were negated
+                    return -(objs[0] + objs[1])  
                 return 0
             
             sorted_solutions = sorted(all_solutions, key=solution_score, reverse=True)
@@ -1826,7 +1825,7 @@ def interactive_mode_basic_enhanced(system: RefactoringRAGSystem, best_model: st
 
             if command in ['quit', 'exit', 'q']:
                 print("Exiting. Goodbye!")
-                break  # This should properly exit the main loop
+                break 
 
             elif command == 'best':
                 response_mode = "best"
